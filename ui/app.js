@@ -15,7 +15,8 @@ const LOCAL_OVERRIDES_KEY = 'slimefun-planner-overrides-v1';
 const state = {
   dataset: null,
   result: null,
-  targets: [],
+  /** 目标清单：[{ id, count }]，由选框添加，避免手打名称出错 */
+  targetList: [],
   baseMaterials: new Set(DEFAULT_BASE_MATERIALS),
   inventoryText: '',
   overrides: [],
@@ -23,6 +24,7 @@ const state = {
   recipeChoice: {},
   autoSelect: true,
   addonFiles: [],
+  theme: 'light',
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -120,6 +122,8 @@ function loadSettings() {
     if (typeof saved.inventoryText === 'string') state.inventoryText = saved.inventoryText;
     if (Array.isArray(saved.addonFiles)) state.addonFiles = saved.addonFiles;
     if (typeof saved.autoSelect === 'boolean') state.autoSelect = saved.autoSelect;
+    if (Array.isArray(saved.targetList)) state.targetList = normalizeTargetList(saved.targetList);
+    if (saved.theme === 'dark' || saved.theme === 'light') state.theme = saved.theme;
   } catch (err) {
     console.warn('[settings] 读取失败', err);
   }
@@ -132,28 +136,83 @@ function saveSettings() {
       inventoryText: state.inventoryText,
       addonFiles: state.addonFiles,
       autoSelect: state.autoSelect,
+      targetList: state.targetList,
+      theme: state.theme,
     }));
   } catch (err) {
     console.warn('[settings] 保存失败', err);
   }
 }
 
+function normalizeTargetList(list) {
+  const out = [];
+  for (const item of list || []) {
+    if (!item || typeof item.id !== 'string') continue;
+    const count = Math.max(1, Math.floor(Number(item.count) || 1));
+    const existing = out.find((entry) => entry.id === item.id);
+    if (existing) existing.count += count;
+    else out.push({ id: item.id, count });
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- 主题
+
+function applyTheme() {
+  const theme = state.theme === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  const icon = $('#themeIcon');
+  const label = $('#themeLabel');
+  if (icon) icon.textContent = theme === 'dark' ? '🌙' : '☀';
+  if (label) label.textContent = theme === 'dark' ? '深色' : '浅色';
+}
+
+/** 读取 URL 上的 ?theme=dark|light，方便直接分享指定主题的链接 */
+function themeFromUrl() {
+  try {
+    const value = new URLSearchParams(location.search).get('theme');
+    return value === 'dark' || value === 'light' ? value : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function setupTheme() {
+  applyTheme();
+  $('#themeToggle').addEventListener('click', () => {
+    state.theme = state.theme === 'dark' ? 'light' : 'dark';
+    applyTheme();
+    saveSettings();
+  });
+}
+
 // ---------------------------------------------------------------- 输入解析
 
 function parseInventory(text) {
   const inventory = {};
+  const unknown = [];
   for (const rawLine of String(text || '').split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
     const match = line.match(/^(.*?)\s*[=:：]\s*(\d+)$/) || line.match(/^(\S+)\s+(\d+)$/);
-    if (!match) continue;
+    if (!match) {
+      unknown.push(line);
+      continue;
+    }
     const query = match[1].trim();
     const count = Number(match[2]);
-    if (!query || !Number.isFinite(count) || count <= 0) continue;
+    if (!query || !Number.isFinite(count) || count <= 0) {
+      unknown.push(line);
+      continue;
+    }
     const id = resolveItemId(query);
-    if (id) inventory[id] = (inventory[id] || 0) + count;
+    if (!id) {
+      unknown.push(query);
+      continue;
+    }
+    inventory[id] = (inventory[id] || 0) + count;
   }
-  return inventory;
+  return { inventory, unknown };
 }
 
 function resolveItemId(query) {
@@ -167,6 +226,7 @@ function resolveItemId(query) {
   return hits.length > 0 ? hits[0].id : null;
 }
 
+/** 批量文本 → 目标清单（名称对不上就报出来，不猜） */
 function parseTargets(text) {
   const targets = [];
   const unknown = [];
@@ -193,15 +253,16 @@ function parseTargets(text) {
 
 function compute() {
   if (!state.dataset) return null;
-  const inventory = parseInventory(state.inventoryText);
+  const { inventory, unknown } = parseInventory(state.inventoryText);
   const result = plan(state.dataset, {
-    targets: state.targets,
+    targets: state.targetList,
     baseMaterials: [...state.baseMaterials],
     inventory,
     autoSelect: state.autoSelect,
     recipeChoice: state.recipeChoice,
   });
   result.inventoryUsed = inventory;
+  result.unknownInventory = unknown;
   return result;
 }
 
@@ -238,6 +299,9 @@ function renderSummary(result) {
   }
   if (result.inventoryUsed && Object.keys(result.inventoryUsed).length > 0) {
     warnings.push(`ℹ 已按库存抵扣：${result.usedInventory.map((item) => `${escapeHtml(item.name)} -${item.used}`).join('、')}`);
+  }
+  if (result.unknownInventory && result.unknownInventory.length > 0) {
+    warnings.push(`⚠ 库存里有没匹配上的写法，已忽略：${result.unknownInventory.map(escapeHtml).join('、')}`);
   }
   $('#warnList').innerHTML = warnings.map((text) => `<div class="warn">${text}</div>`).join('');
 }
@@ -415,19 +479,7 @@ function setBadge(id, value) {
 }
 
 function runPlan() {
-  const text = $('#targetInput').value;
-  const { targets, unknown } = parseTargets(text);
-  state.targets = targets;
-
-  const notice = $('#inputNotice');
-  if (unknown.length > 0) {
-    notice.hidden = false;
-    notice.innerHTML = `没找到这些物品，已跳过：<b>${escapeHtml(unknown.join('、'))}</b>（试试用中文名或物品 ID 搜索）`;
-  } else {
-    notice.hidden = true;
-  }
-
-  if (targets.length === 0) {
+  if (state.targetList.length === 0) {
     $('#resultPanel').hidden = true;
     $('#summaryPanel').hidden = true;
     state.result = null;
@@ -522,39 +574,190 @@ function setupMaterialsControls() {
   });
 }
 
-function setupSearch() {
-  const input = $('#searchInput');
+// ---------------------------------------------------------------- 物品选框
+
+function suggestItemHtml(hit) {
+  return `<div class="suggest-item" data-id="${escapeHtml(hit.id)}">
+    <span>${escapeHtml(hit.name)}</span>
+    <span class="tag-id">${escapeHtml(hit.id)}${hit.recipeType ? ` · ${escapeHtml(hit.recipeType)}` : ''}</span>
+  </div>`;
+}
+
+/** 物品搜索框：只负责"选中一个物品"，不做自由文本解析，避免抓错物品 */
+function setupItemPicker() {
+  const input = $('#itemInput');
   const box = $('#suggestBox');
+
   const render = () => {
     const query = input.value.trim();
-    if (!query) {
-      box.hidden = true;
-      return;
-    }
-    const hits = state.dataset.search(query, 12);
+    const hits = query ? state.dataset.search(query, 14) : [];
     if (hits.length === 0) {
-      box.hidden = false;
-      box.innerHTML = '<div class="suggest-item muted">没有匹配的物品</div>';
+      box.hidden = true;
+      box.innerHTML = '';
       return;
     }
     box.hidden = false;
-    box.innerHTML = hits.map((hit) => `<div class="suggest-item" data-id="${escapeHtml(hit.id)}">
-      <span>${escapeHtml(hit.name)}</span><span class="muted small">${escapeHtml(hit.recipeType || '')}</span>
-    </div>`).join('');
+    box.innerHTML = hits.map(suggestItemHtml).join('');
   };
+
+  const choose = (id) => {
+    addTarget(id, readQuantity());
+    input.value = '';
+    box.hidden = true;
+    $('#qtyInput').value = '1';
+  };
+
   input.addEventListener('input', render);
   input.addEventListener('focus', render);
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const query = input.value.trim();
+      if (!query) return;
+      // 优先精确命中；否则取搜索首项（仍是"选择"而不是猜测）
+      const exact = state.dataset.has(query) ? query : resolveItemId(query);
+      if (exact) choose(exact);
+      else {
+        showNotice(`没找到「${query}」，换一个名字或从列表里点选。`);
+      }
+    }
+  });
   box.addEventListener('click', (event) => {
     const item = event.target.closest('.suggest-item');
     if (!item || !item.dataset.id) return;
-    const target = $('#targetInput');
-    target.value = `${target.value.trim()}${target.value.trim() ? '\n' : ''}${state.dataset.name(item.dataset.id)} x1`;
-    input.value = '';
-    box.hidden = true;
-    runPlan();
+    choose(item.dataset.id);
   });
   document.addEventListener('click', (event) => {
     if (!event.target.closest('.search-wrap')) box.hidden = true;
+  });
+
+  $('#addTargetBtn').addEventListener('click', () => {
+    const query = input.value.trim();
+    if (!query) {
+      showNotice('先在上面选中一个物品，再点「添加」。');
+      return;
+    }
+    const id = state.dataset.has(query) ? query : resolveItemId(query);
+    if (!id) {
+      showNotice(`没找到「${query}」，换一个名字或从下拉列表里点选。`);
+      return;
+    }
+    choose(id);
+  });
+
+  $('#qtyInput').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      $('#addTargetBtn').click();
+    }
+  });
+}
+
+function readQuantity() {
+  const value = Math.floor(Number($('#qtyInput').value) || 0);
+  return value > 0 ? value : 1;
+}
+
+function addTarget(id, count) {
+  if (!state.dataset.has(id)) return;
+  const existing = state.targetList.find((item) => item.id === id);
+  if (existing) existing.count += count;
+  else state.targetList.push({ id, count: Math.max(1, count) });
+  saveSettings();
+  renderTargetList();
+  hideNotice();
+  runPlan();
+}
+
+function removeTarget(id) {
+  state.targetList = state.targetList.filter((item) => item.id !== id);
+  saveSettings();
+  renderTargetList();
+  runPlan();
+}
+
+function setTargetCount(id, count) {
+  const target = state.targetList.find((item) => item.id === id);
+  if (!target) return;
+  target.count = Math.max(1, Math.floor(count) || 1);
+  saveSettings();
+  runPlan();
+}
+
+function renderTargetList() {
+  const container = $('#targetList');
+  if (state.targetList.length === 0) {
+    container.innerHTML = '<div class="target-empty">还没有添加目标。上面挑一个物品、填好数量，点「添加」。</div>';
+    return;
+  }
+  container.innerHTML = state.targetList.map((item) => `
+    <div class="target-row" data-id="${escapeHtml(item.id)}">
+      <span class="t-name">${escapeHtml(state.dataset.name(item.id))}</span>
+      <span class="t-id">${escapeHtml(item.id)}</span>
+      <input type="number" min="1" step="1" value="${item.count}" data-role="count" aria-label="数量">
+      <button class="t-remove" data-role="remove" title="移除">✕</button>
+    </div>`).join('');
+
+  container.querySelectorAll('.target-row').forEach((row) => {
+    const id = row.dataset.id;
+    row.querySelector('[data-role=count]').addEventListener('change', (event) => {
+      setTargetCount(id, Number(event.target.value));
+    });
+    row.querySelector('[data-role=remove]').addEventListener('click', () => removeTarget(id));
+  });
+}
+
+function showNotice(html) {
+  const notice = $('#inputNotice');
+  notice.hidden = false;
+  notice.innerHTML = html;
+}
+
+function hideNotice() {
+  const notice = $('#inputNotice');
+  notice.hidden = true;
+  notice.innerHTML = '';
+}
+
+// ---------------------------------------------------------------- 快捷标签
+
+const QUICK_PRESETS = [
+  { name: '人造钻石', count: 1 },
+  { name: '碳块', count: 8 },
+  { name: '钢锭', count: 64 },
+  { name: '铁粉', count: 64 },
+  { name: '强化合金锭', count: 16 },
+];
+
+function setupQuickChips() {
+  $('#quickChips').innerHTML = QUICK_PRESETS
+    .map((preset) => `<button class="chip-btn" data-name="${escapeHtml(preset.name)}" data-count="${preset.count}">${escapeHtml(preset.name)} ×${preset.count}</button>`)
+    .join('');
+  $('#quickChips').addEventListener('click', (event) => {
+    const button = event.target.closest('.chip-btn');
+    if (!button) return;
+    const id = resolveItemId(button.dataset.name);
+    if (!id) {
+      showNotice(`数据集里没有「${button.dataset.name}」，可能你的服务器版本或附属不同。`);
+      return;
+    }
+    addTarget(id, Number(button.dataset.count) || 1);
+  });
+}
+
+/** 批量文本：解析成清单后仍然走同一套"清单 → 计划"流程 */
+function setupBatchInput() {
+  $('#parseBatchBtn').addEventListener('click', () => {
+    const { targets, unknown } = parseTargets($('#targetInput').value);
+    if (targets.length > 0) {
+      for (const target of targets) addTarget(target.id, target.count);
+      $('#targetInput').value = '';
+    }
+    if (unknown.length > 0) {
+      showNotice(`这些名字没匹配上，已跳过：<b>${escapeHtml(unknown.join('、'))}</b>　（请用选框挑选，或改用物品 ID）`);
+    } else if (targets.length === 0) {
+      showNotice('没解析出任何物品，检查一下格式：<code>物品名 x 数量</code>。');
+    }
   });
 }
 
@@ -564,7 +767,13 @@ function setupSettings() {
   inventory.addEventListener('change', () => {
     state.inventoryText = inventory.value;
     saveSettings();
-    if (state.targets.length > 0) runPlan();
+    const { unknown } = parseInventory(state.inventoryText);
+    if (unknown.length > 0) {
+      showNotice(`库存里有这几行没匹配上物品，已忽略：<b>${escapeHtml(unknown.join('、'))}</b>　（格式：<code>物品名 = 数量</code>）`);
+    } else {
+      hideNotice();
+    }
+    if (state.targetList.length > 0) runPlan();
   });
 
   const overrideInput = $('#overrideInput');
@@ -576,8 +785,9 @@ function setupSettings() {
     writeLocalOverrides(list);
     state.overrides = mergeOverrides(await readBuiltinOverrides(), list);
     state.dataset = createDatasetWithOverrides(state.overrides);
+    renderTargetList();
     if (message) alert(message);
-    if (state.targets.length > 0) runPlan();
+    if (state.targetList.length > 0) runPlan();
   };
 
   $('#saveOverrides').addEventListener('click', async () => {
@@ -618,24 +828,13 @@ function setupSettings() {
   });
 }
 
-function setupQuickChips() {
-  const presets = ['人造钻石 x1', '碳块 x8', '钢锭 x64', '铁粉 x64', '强化合金锭 x16'];
-  $('#quickChips').innerHTML = presets
-    .map((preset) => `<button class="chip-btn" data-preset="${escapeHtml(preset)}">${escapeHtml(preset)}</button>`)
-    .join('');
-  $('#quickChips').addEventListener('click', (event) => {
-    const button = event.target.closest('.chip-btn');
-    if (!button) return;
-    const input = $('#targetInput');
-    input.value = button.dataset.preset;
-    runPlan();
-  });
-}
-
 // ---------------------------------------------------------------- 启动
 
 async function main() {
   loadSettings();
+  const urlTheme = themeFromUrl();
+  if (urlTheme) state.theme = urlTheme;
+  applyTheme();
   $('#autoSelect').checked = state.autoSelect;
 
   let addonCount = 0;
@@ -646,13 +845,22 @@ async function main() {
     return;
   }
 
+  // 第一次打开时给一个能直接看到效果的清单
+  if (state.targetList.length === 0) {
+    const seed = resolveItemId('人造钻石');
+    if (seed) state.targetList = [{ id: seed, count: 1 }];
+  }
+
   renderDatasetInfo(addonCount);
   renderBaseGroups();
   renderSources(addonCount);
+  renderTargetList();
+  setupTheme();
   setupTabs();
   setupTreeControls();
   setupMaterialsControls();
-  setupSearch();
+  setupItemPicker();
+  setupBatchInput();
   setupSettings();
   setupQuickChips();
 
@@ -661,23 +869,21 @@ async function main() {
     runPlan();
   });
   $('#clearBtn').addEventListener('click', () => {
-    $('#targetInput').value = '';
+    state.targetList = [];
+    saveSettings();
+    renderTargetList();
+    hideNotice();
     $('#resultPanel').hidden = true;
     $('#summaryPanel').hidden = true;
     state.result = null;
-    state.targets = [];
-  });
-  $('#targetInput').addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) runPlan();
   });
   $('#autoSelect').addEventListener('change', () => {
     state.autoSelect = $('#autoSelect').checked;
     if (state.autoSelect) state.recipeChoice = {};
     saveSettings();
-    runPlan();
+    if (state.targetList.length > 0) runPlan();
   });
 
-  $('#targetInput').value = '人造钻石 x1';
   runPlan();
 }
 

@@ -12,29 +12,61 @@
     <span class="logo">⚙</span>
     <div>
       <h1>粘液科技配方树助手</h1>
-      <p class="sub">输入想做的物品 → 得到要收集的材料、合成顺序和树状图</p>
+      <p class="sub">选物品 + 填数量 → 得到要收集的材料、合成顺序和树状图</p>
     </div>
   </div>
-  <div class="dataset-info" id="datasetInfo">正在加载配方数据…</div>
+  <div class="topbar-right">
+    <div class="dataset-info" id="datasetInfo">正在加载配方数据…</div>
+    <button id="themeToggle" class="theme-toggle" title="切换浅色 / 深色主题" aria-label="切换主题">
+      <span id="themeIcon">☀</span><span id="themeLabel">浅色</span>
+    </button>
+  </div>
 </header>
 
 <main>
   <section class="panel input-panel">
-    <label class="field-label" for="targetInput">要做什么？（支持一行一个，或「物品 x 数量」）</label>
-    <textarea id="targetInput" rows="3" placeholder="例如：&#10;人造钻石 x 2&#10;钢锭 128&#10;铁粉 ×64"></textarea>
+    <h2>要做的东西</h2>
+    <p class="hint">从选框里挑物品、填数量，点「添加」——避免手打名字挑错物品。可以加多个。</p>
+
+    <div class="picker">
+      <div class="picker-field grow">
+        <label class="field-label" for="itemInput">物品</label>
+        <div class="search-wrap">
+          <input type="search" id="itemInput" placeholder="输入中文名或 ID 搜索，例如：人造钻石 / SYNTHETIC_DIAMOND" autocomplete="off">
+          <div class="suggest" id="suggestBox" hidden></div>
+        </div>
+      </div>
+      <div class="picker-field qty">
+        <label class="field-label" for="qtyInput">数量</label>
+        <input type="number" id="qtyInput" min="1" step="1" value="1" inputmode="numeric">
+      </div>
+      <div class="picker-field">
+        <label class="field-label">&nbsp;</label>
+        <button id="addTargetBtn" class="primary">添加</button>
+      </div>
+    </div>
+
+    <div class="suggest-list" id="browseBox" hidden></div>
 
     <div class="chips" id="quickChips"></div>
 
+    <div class="target-list" id="targetList"></div>
+    <div class="notice" id="inputNotice" hidden></div>
+
+    <details class="batch-box">
+      <summary>批量输入（可选，会逐个匹配物品名）</summary>
+      <textarea id="targetInput" rows="3" placeholder="例如：&#10;人造钻石 x 2&#10;钢锭 128&#10;铁粉 ×64"></textarea>
+      <div class="input-actions">
+        <button id="parseBatchBtn">从文本生成清单</button>
+        <span class="hint">名称对不上时会提示，不会静默抓成别的物品。</span>
+      </div>
+    </details>
+
     <div class="input-actions">
       <button id="planBtn" class="primary">生成配方树</button>
-      <button id="clearBtn">清空</button>
+      <button id="clearBtn">清空清单</button>
       <label class="checkbox"><input type="checkbox" id="autoSelect" checked> 多路线自动选最省生料</label>
-      <span class="search-wrap">
-        <input type="search" id="searchInput" placeholder="搜索物品（中文名或 ID）…" autocomplete="off">
-        <div class="suggest" id="suggestBox" hidden></div>
-      </span>
     </div>
-    <div class="notice" id="inputNotice" hidden></div>
   </section>
 
   <section class="panel summary-panel" id="summaryPanel" hidden>

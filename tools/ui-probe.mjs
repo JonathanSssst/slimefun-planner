@@ -89,6 +89,7 @@ function matches(element, selector) {
 const registry = new Map();
 const documentStub = {
   createElement: (tag) => new FakeElement(tag),
+  documentElement: new FakeElement('html'),
   querySelector: (selector) => {
     if (!registry.has(selector)) {
       const id = selector.startsWith('#') ? selector.slice(1) : '';
@@ -104,8 +105,12 @@ const documentStub = {
 
 globalThis.document = documentStub;
 globalThis.window = { addEventListener: () => {} };
-globalThis.location = { hostname: new URL(BASE).hostname, href: `${BASE}/`, protocol: 'http:' };
-// Node 里 navigator 是只读 getter，用 defineProperty 补上 clipboard
+globalThis.location = {
+  hostname: new URL(BASE).hostname,
+  href: `${BASE}/`,
+  protocol: new URL(BASE).protocol,
+  search: new URL(BASE).search || '',
+};// Node 里 navigator 是只读 getter，用 defineProperty 补上 clipboard
 try {
   Object.defineProperty(globalThis, 'navigator', {
     value: { clipboard: { writeText: async () => {} } },
@@ -125,7 +130,13 @@ globalThis.URL.createObjectURL = () => 'blob:fake';
 globalThis.URL.revokeObjectURL = () => {};
 
 const realFetch = globalThis.fetch;
-globalThis.fetch = (url, options) => realFetch(new URL(url, BASE).toString(), options);
+const BASE_URL = new URL(BASE);
+globalThis.fetch = (url, options) => {
+  // 相对路径按站点根解析，且丢掉 ?theme=... 之类的查询串（静态文件不需要）
+  const target = new URL(url, `${BASE_URL.origin}${BASE_URL.pathname}`);
+  target.search = '';
+  return realFetch(target.toString(), options);
+};
 
 let failures = 0;
 function check(label, condition, detail = '') {
@@ -146,9 +157,18 @@ await import(pathToFileURL(new URL('../ui/app.js', import.meta.url).pathname.rep
 
 await new Promise((resolve) => setTimeout(resolve, 2500));
 
+const expectedTheme = BASE_URL.searchParams.get('theme') || 'light';
 console.log('\n界面自检结果：');
 check('无未捕获异常', errors.length === 0, errors.map((err) => err.message).join('; '));
+check(`主题为 ${expectedTheme}（默认浅色，?theme=dark 可切换）`,
+  documentStub.documentElement.attributes['data-theme'] === expectedTheme,
+  `实际=${documentStub.documentElement.attributes['data-theme']}`);
+check('主题按钮标签正确',
+  documentStub.querySelector('#themeLabel').textContent === (expectedTheme === 'dark' ? '深色' : '浅色'),
+  `实际=${documentStub.querySelector('#themeLabel').textContent}`);
 check('数据集信息已渲染', /配方条目/.test(documentStub.querySelector('#datasetInfo').innerHTML));
+check('目标清单已渲染（选框添加）', /target-row/.test(documentStub.querySelector('#targetList').innerHTML));
+check('物品选框已初始化', /suggest|chip-btn/.test(documentStub.querySelector('#quickChips').innerHTML));
 check('概览卡片已渲染', /card-value/.test(documentStub.querySelector('#summaryGrid').innerHTML));
 check('树状图已渲染节点', /node-head/.test(documentStub.querySelector('#treeView').innerHTML));
 check('采集清单已渲染', /<table|不需要额外采集/.test(documentStub.querySelector('#materialsView').innerHTML));

@@ -88,12 +88,14 @@ async function handleOverridesApi(req, res) {
 }
 
 const server = createServer(async (req, res) => {
-  const url = req.url || '/';
-  if (url.startsWith('/api/overrides')) {
+  const raw = req.url || '/';
+  // 先切掉查询串：/?theme=dark 这类带参数的地址必须也能打开首页
+  const pathname = raw.split('?')[0].split('#')[0] || '/';
+  if (pathname.startsWith('/api/overrides')) {
     await handleOverridesApi(req, res);
     return;
   }
-  const target = safeJoin(url === '/' ? '/index.html' : url);
+  const target = safeJoin(pathname === '/' || pathname === '' ? '/index.html' : pathname);
   if (!target) {
     res.writeHead(403).end('403 越界路径');
     return;

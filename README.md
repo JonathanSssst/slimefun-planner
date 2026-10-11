@@ -2,10 +2,17 @@
 
 **在线版（免安装）：<https://jonathansssst.github.io/slimefun-planner/>**
 
-![界面截图](docs/screenshot.png)
+![浅色主题界面](docs/screenshot.png)
+
+<details>
+<summary>深色主题（点右上角按钮切换，也可用 <code>?theme=dark</code> 直接打开）</summary>
+
+![深色主题界面](docs/screenshot-dark.png)
+
+</details>
 
 输入「想做的物品 + 数量」，输出**要去收集的材料清单**、**按顺序的合成工序**和**可折叠的树状图**。
-纯前端运行，不联网、不上传任何数据。
+纯前端运行，不联网、不上传任何数据。默认浅色主题，右上角一键切深色，选择会被记住。
 
 > 适用：Minecraft 1.21.x + Fabric 客户端连的粘液科技服务器（Slimefun4 本体 + 常见附属）。
 > 数据是公开配方数据集，**不需要**客户端装任何 mod，也不需要服务端配合。
@@ -30,19 +37,19 @@
 
 ### 基本用法
 
-1. 在输入框写要做的东西，一行一个，支持 `物品 x 数量`：
-   ```
-   人造钻石 x2
-   钢锭 128
-   铁粉 ×64
-   ```
-2. 点「生成配方树」（或按 `Ctrl+Enter`）。也可以点下面的快捷标签，或用搜索框挑物品。
-3. 看四个页签：
+1. **从选框里挑物品**：在上面搜索框输入中文名或 ID（例如 `人造钻石` / `SYNTHETIC_DIAMOND`），
+   从下拉列表里点选，填好数量点「添加」。这样不会因为手打名字而抓错物品。
+2. 可以加多个目标，清单里每一项都能随时改数量或删掉；下面还有几个常用快捷标签。
+3. 点「生成配方树」。看四个页签：
    - **树状图**：每个节点显示「整棵树一共要合成几次」和用什么机器；点击可折叠。
    - **采集清单**：到底要挖/要收多少，同一材料在多个分支共用时只算一次。
    - **合成工序**：先做什么后做什么，标注机器、批次和每次投料量。
    - **路线对比**：一个物品有多条合成途径时用的，默认自动选最省生料的那条，也可以手动切换。
 4. 「设置」页里可以改基础材料名单、填自己的库存、手工补录配方。
+5. 右上角按钮切换**浅色 / 深色**主题（默认浅色，选择会记住）；想直接分享深色版链接就在网址后面加 `?theme=dark`。
+
+> 如果你更习惯打字，展开「批量输入」框粘贴多行文本（`物品名 x 数量`）。
+> 名称匹配不上的会明确列出来提示，**不会**静默抓成别的物品。
 
 ### 命令行示例
 
@@ -233,6 +240,7 @@ node --use-system-ca tools\set-repo-meta.mjs
 ```bat
 node --test tests/engine.test.mjs tests/overrides.test.mjs   :: 单元测试（13 项）
 node tools/ui-probe.mjs http://127.0.0.1:8791                 :: 界面自检（需先启动服务）
+node tools/ui-probe.mjs "http://127.0.0.1:8791/?theme=dark"   :: 顺带验证深色主题
 node tools/ui-probe.mjs https://jonathansssst.github.io/slimefun-planner/   :: 线上站点自检
 python tools/analyze_dataset.py data/recipes.core.jsonl       :: 数据集体检
 ```
