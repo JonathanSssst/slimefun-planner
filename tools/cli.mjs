@@ -6,6 +6,8 @@
  *   node tools/cli.mjs "人造钻石 x1, 铁粉 x64"
  *   node tools/cli.mjs --json "钢锭 x10"
  *   node tools/cli.mjs --list 人造          # 搜索物品
+ *   node tools/cli.mjs --depth=1 "强化合金锭 x16"   # 清单停在直接投料（铜粉/铁粉这类）
+ *   node tools/cli.mjs --depth=all "强化合金锭 x16" # 一路展开到煤炭/沙砾等生料
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -83,6 +85,11 @@ function main() {
   const extra = fileArg ? fileArg.slice('--addons='.length).split(',') : [];
   const dataset = loadCoreDataset(extra.map((name) => (name.endsWith('.jsonl') ? name : `${name}.jsonl`)));
 
+  // 采集清单粒度：默认停在一层（直接投料的中间产物），--depth=all 展开到生料
+  const depthArg = args.find((arg) => arg.startsWith('--depth='));
+  const depthRaw = depthArg ? depthArg.slice('--depth='.length) : '1';
+  const depthValue = depthRaw === 'all' || depthRaw === 'inf' ? undefined : Number(depthRaw);
+
   if (listMode) {
     const keyword = args[args.indexOf('--list') + 1] || '';
     const hits = dataset.search(keyword, 25);
@@ -105,7 +112,11 @@ function main() {
     return;
   }
 
-  const result = plan(dataset, { targets, baseMaterials: [...baseSet] });
+  const result = plan(dataset, {
+    targets,
+    baseMaterials: [...baseSet],
+    materialDepth: depthValue,
+  });
 
   if (asJson) {
     console.log(JSON.stringify({
@@ -125,7 +136,11 @@ function main() {
 
   console.log('\n=== 采集清单（要弄到的东西）===');
   for (const item of result.raw.slice(0, 60)) {
-    const tag = item.kind === 'base' ? '基础材料' : item.kind === 'gather' ? '采集/掉落' : item.kind === 'cycle' ? '循环·需人工确认' : '无配方数据';
+    const tag = item.kind === 'base' ? '基础材料'
+      : item.kind === 'gather' ? '采集/掉落'
+      : item.kind === 'cutoff' ? '中间产物(可自制)'
+      : item.kind === 'cycle' ? '循环·需人工确认'
+      : '无配方数据';
     console.log(`  ${String(item.count).padStart(4)} × ${item.name}  [${tag}]  需求 ${item.demand}`);
   }
   if (result.raw.length > 60) console.log(`  ... 其余 ${result.raw.length - 60} 项省略`);

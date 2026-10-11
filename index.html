@@ -46,6 +46,17 @@
       </div>
     </div>
 
+    <div class="depth-bar">
+      <label class="field-label" for="depthSelect">采集清单粒度</label>
+      <select id="depthSelect">
+        <option value="1" selected>只到直接投料（如 铜粉 / 铁粉 / 压缩碳）</option>
+        <option value="2">再展开一层</option>
+        <option value="3">展开三层</option>
+        <option value="all">全部展开到生料（如 煤炭 / 沙砾 / 铁矿石）</option>
+      </select>
+      <span class="hint" id="depthHint"></span>
+    </div>
+
     <div class="suggest-list" id="browseBox" hidden></div>
 
     <div class="chips" id="quickChips"></div>

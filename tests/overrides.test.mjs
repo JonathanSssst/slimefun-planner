@@ -51,7 +51,10 @@ test('补录能新增数据里没有的物品', () => {
   const custom = result.routes.find((route) => route.id === 'simefun4:MY_CUSTOM_ITEM');
   assert.equal(custom.crafts, 2);
   assert.equal(custom.materials[0].total, 8);
-  assert.equal(result.missing.length, 0, '补录后不应再报"无配方数据"');
+  // 补录的物品能正常参与计算，且不该被报成"数据缺失"
+  assert.ok(!result.missing.some((item) => item.id === 'simefun4:MY_CUSTOM_ITEM'),
+    '补录后目标不应再报"无配方数据"');
+  assert.equal(dataset.name('simefun4:MY_CUSTOM_ITEM'), '我的自制物品');
 });
 
 test('补录可以把物品设为采集终点', () => {

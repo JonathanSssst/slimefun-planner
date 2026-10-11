@@ -25,6 +25,8 @@ const state = {
   autoSelect: true,
   addonFiles: [],
   theme: 'light',
+  /** 采集清单粒度：'1'=只到直接投料，'2'/'3'=再展开几层，'all'=一路展开到生料 */
+  materialDepth: '1',
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -124,6 +126,7 @@ function loadSettings() {
     if (typeof saved.autoSelect === 'boolean') state.autoSelect = saved.autoSelect;
     if (Array.isArray(saved.targetList)) state.targetList = normalizeTargetList(saved.targetList);
     if (saved.theme === 'dark' || saved.theme === 'light') state.theme = saved.theme;
+    if (typeof saved.materialDepth === 'string') state.materialDepth = saved.materialDepth;
   } catch (err) {
     console.warn('[settings] 读取失败', err);
   }
@@ -138,6 +141,7 @@ function saveSettings() {
       autoSelect: state.autoSelect,
       targetList: state.targetList,
       theme: state.theme,
+      materialDepth: state.materialDepth,
     }));
   } catch (err) {
     console.warn('[settings] 保存失败', err);
@@ -260,6 +264,7 @@ function compute() {
     inventory,
     autoSelect: state.autoSelect,
     recipeChoice: state.recipeChoice,
+    materialDepth: state.materialDepth === 'all' ? undefined : Number(state.materialDepth),
   });
   result.inventoryUsed = inventory;
   result.unknownInventory = unknown;
@@ -328,6 +333,7 @@ function treeNodeHtml(node, isRoot) {
     const kindLabel = {
       base: '基础材料',
       gather: '采集/掉落',
+      cutoff: '中间产物 · 可自制',
       cycle: '循环·需确认',
       unknown: '无配方数据',
       crafted: '成品',
@@ -363,6 +369,7 @@ function renderMaterials(result) {
     const kindLabel = {
       base: '<span class="tag base">基础材料</span>',
       gather: '<span class="tag gather">采集/掉落</span>',
+      cutoff: '<span class="tag cutoff">中间产物 · 可自制</span>',
       cycle: '<span class="tag cycle">循环·需确认</span>',
       unknown: '<span class="tag unknown">无配方数据</span>',
       target: '<span class="tag">目标</span>',
@@ -828,6 +835,31 @@ function setupSettings() {
   });
 }
 
+// ---------------------------------------------------------------- 采集清单粒度
+
+const DEPTH_HINTS = {
+  1: '清单停在直接投料的中间产物（铜粉、铁粉、压缩碳…），你可以自己做也可以去买/换。',
+  2: '再往下展开一层，介于"直接投料"和"全部生料"之间。',
+  3: '展开三层，适合想看更细的来源但还不想追到矿石。',
+  all: '一路展开到原版生料（煤炭、沙砾、铁矿石…），适合从头收集。',
+};
+
+function renderDepthHint() {
+  $('#depthHint').textContent = DEPTH_HINTS[state.materialDepth] || '';
+}
+
+function setupDepth() {
+  const select = $('#depthSelect');
+  select.value = state.materialDepth;
+  renderDepthHint();
+  select.addEventListener('change', () => {
+    state.materialDepth = select.value;
+    renderDepthHint();
+    saveSettings();
+    if (state.targetList.length > 0) runPlan();
+  });
+}
+
 // ---------------------------------------------------------------- 启动
 
 async function main() {
@@ -861,6 +893,7 @@ async function main() {
   setupMaterialsControls();
   setupItemPicker();
   setupBatchInput();
+  setupDepth();
   setupSettings();
   setupQuickChips();
 

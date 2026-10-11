@@ -204,6 +204,31 @@ button.primary:hover { filter: brightness(1.06); color: var(--accent-text); }
 .batch-box summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
 .batch-box textarea { margin-top: 8px; }
 
+/* 采集清单粒度选择 */
+.depth-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.depth-bar .field-label { margin: 0; white-space: nowrap; }
+.depth-bar select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  min-width: 260px;
+}
+.depth-bar select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .chip-btn {
   background: var(--panel-2);
@@ -296,6 +321,7 @@ button.primary:hover { filter: brightness(1.06); color: var(--accent-text); }
 .chip.machine { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .chip.need { color: var(--warn); border-color: var(--warn-line); background: var(--warn-soft); }
 .chip.stock { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.chip.cutoff { color: var(--warn); border-color: var(--warn-line); background: var(--warn-soft); }
 .chip.base { color: var(--ok); }
 .chip.gather { color: #7a52c7; }
 html[data-theme="dark"] .chip.gather { color: #d8c2ff; }
@@ -325,6 +351,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600
 
 .tag { padding: 1px 7px; border-radius: 999px; font-size: 11px; border: 1px solid var(--chip-line); color: var(--muted); background: var(--chip-bg); }
 .tag.base { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.tag.cutoff { color: var(--warn); border-color: var(--warn-line); background: var(--warn-soft); }
 .tag.gather { color: #7a52c7; border-color: #7a52c7; }
 html[data-theme="dark"] .tag.gather { color: #d8c2ff; border-color: #4a3a66; }
 .tag.cycle { color: var(--danger); border-color: var(--danger-line); background: var(--danger-soft); }

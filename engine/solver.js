@@ -32,43 +32,83 @@ export function solve(dataset, options = {}) {
     return list[0];
   }
 
-  /** 没有配方、采集型、或用户指定为基础材料 → 采集终点（目标本身仍然会展开） */
+  /** 目标物品集合：目标即便命中基础材料名单，只要真有配方就仍然展开 */
+  const targetsWithDemand = new Set(targets.map((target) => target.id));
+
+  /** 该物品有没有真正可用于合成的配方 */
+  function hasRealRecipe(id) {
+    const variant = resolveVariant(id);
+    return Boolean(variant && !variant.gather && variant.materials.length > 0);
+  }
+
   /**
    * 是不是"采集终点"（不再往下展开配方）。
    * 注意：目标物品**如果真的有可展开的配方**，即使命中基础材料名单也照常展开，
    * 否则你输入"铁粉 ×64"只会得到"去弄 64 个铁粉"，看不到它其实能用粉碎机做。
    */
   function isTerminal(id) {
-    const variant = resolveVariant(id);
-    const expandable = Boolean(variant && !variant.gather && variant.materials.length > 0);
-    if (targetsWithDemand.has(id) && expandable) return false;
+    if (targetsWithDemand.has(id) && hasRealRecipe(id)) return false;
     if (baseSet.has(id)) return true;
+    const variant = resolveVariant(id);
     if (!variant) return true;
     return variant.gather || variant.materials.length === 0;
   }
 
-  const targetsWithDemand = new Set(targets.map((target) => target.id));
-
   // ---- 建图 ----
+  // 展开层数 materialDepth：0 = 目标本身不展开；1 = 只展开一层，清单停在中间产物
+  // （铜粉/铁粉/压缩碳这类）；Infinity 或不传 = 一路展开到生料（煤炭、沙砾…）。
+  // 用 BFS 保证每个物品记录的是"最浅深度"。
+  const materialDepth = normalizeDepth(options.materialDepth);
+  const depth = new Map();
   const children = new Map();
   const parentRefs = new Map();
   const added = new Set();
+  const bfsQueue = [];
 
-  function walk(id) {
-    if (added.has(id)) return;
-    added.add(id);
-    if (isTerminal(id)) return;
-    const variant = resolveVariant(id);
-    if (!children.has(id)) children.set(id, new Set());
-    for (const material of variant.materials) {
-      children.get(id).add(material.material);
-      if (!parentRefs.has(material.material)) parentRefs.set(material.material, new Set());
-      parentRefs.get(material.material).add(id);
-      walk(material.material);
+  for (const target of targets) {
+    if (!depth.has(target.id)) depth.set(target.id, 0);
+    if (!added.has(target.id)) {
+      added.add(target.id);
+      bfsQueue.push(target.id);
     }
   }
 
-  for (const target of targets) walk(target.id);
+  for (let i = 0; i < bfsQueue.length; i += 1) {
+    const id = bfsQueue[i];
+    const current = depth.get(id) || 0;
+    if (current >= materialDepth) continue; // 到层数就停，它直接进采集清单
+    if (!isTerminal(id)) {
+      const variant = resolveVariant(id);
+      if (!children.has(id)) children.set(id, new Set());
+      for (const material of variant.materials) {
+        children.get(id).add(material.material);
+        if (!parentRefs.has(material.material)) parentRefs.set(material.material, new Set());
+        parentRefs.get(material.material).add(id);
+        const next = current + 1;
+        const known = depth.get(material.material);
+        if (known === undefined || next < known) depth.set(material.material, next);
+        if (!added.has(material.material)) {
+          added.add(material.material);
+          bfsQueue.push(material.material);
+        }
+      }
+    }
+  }
+
+  // 层数截断后清理
+  for (const id of bfsQueue) {
+    if ((depth.get(id) ?? 0) > materialDepth) {
+      added.delete(id);
+      children.delete(id);
+    }
+  }
+  for (const [id, refs] of parentRefs) {
+    if (!added.has(id)) {
+      parentRefs.delete(id);
+      continue;
+    }
+    for (const parentId of [...refs]) if (!added.has(parentId)) refs.delete(parentId);
+  }
 
   // 拓扑序：叶在前、根在后
   const indegree = new Map();
@@ -88,7 +128,10 @@ export function solve(dataset, options = {}) {
   const unresolved = [...added].filter((id) => (indegree.get(id) || 0) > 0);
   const cycleSet = new Set(unresolved);
 
-  const craftable = order.filter((id) => !isTerminal(id) && !cycleSet.has(id));
+  // 截断层：命中展开层数上限的中间产物（铜粉/铁粉/压缩碳这类）不再参与合成，
+  // 而是像生料一样进采集清单 —— 这正是"清单停在中间产物"想要的粒度。
+  const isCutoff = (id) => (depth.get(id) ?? 0) >= materialDepth;
+  const craftable = order.filter((id) => !isTerminal(id) && !cycleSet.has(id) && !isCutoff(id));
   const targetDemand = new Map();
   for (const target of targets) targetDemand.set(target.id, (targetDemand.get(target.id) || 0) + target.count);
 
@@ -127,7 +170,7 @@ export function solve(dataset, options = {}) {
     const nextProduced = new Map();
     const nextExcess = new Map();
     for (const id of order) {
-      if (isTerminal(id) || cycleSet.has(id)) {
+      if (isTerminal(id) || cycleSet.has(id) || isCutoff(id)) {
         nextCrafts.set(id, 0);
         nextProduced.set(id, 0);
         nextExcess.set(id, 0);
@@ -191,6 +234,9 @@ export function solve(dataset, options = {}) {
     const shortfall = Math.max(0, demand - fromStock);
     if (shortfall <= 0 && demand <= 0) continue;
     const variant = dataset.get(id);
+    // cutoff：命中展开层数上限的中间产物（例如 1 层时的铜粉/铁粉/压缩碳）。
+    // 它自己有配方，但因为层数限制没有继续展开，所以既进采集清单，也提示"可以自己做"。
+    const cutoff = Boolean(variant && hasRealRecipe(id) && isCutoff(id));
     raw.push({
       id,
       name: dataset.name(id),
@@ -199,10 +245,14 @@ export function solve(dataset, options = {}) {
       demand,
       fromInventory: fromStock,
       fromSpare: 0,
-      kind: cycleSet.has(id) ? 'cycle' : variant?.gather ? 'gather' : baseSet.has(id) ? 'base' : 'unknown',
+      kind: cutoff
+        ? 'cutoff'
+        : cycleSet.has(id) ? 'cycle' : variant?.gather ? 'gather' : baseSet.has(id) ? 'base' : 'unknown',
       machine: variant?.recipeType || '—',
     });
-    if (!variant && !baseSet.has(id)) missing.push({ id, name: dataset.name(id) });
+    // 只有"既没有配方、也不是采集终点、也不在基础材料名单"的才值得报"数据缺失"。
+    // 煤炭这类原版物品本来就没有配方条目，属于正常的基础材料，不该刷屏。
+    if (!variant && !cutoff) missing.push({ id, name: dataset.name(id) });
   }
 
   for (const [id, stock] of inventory) {
@@ -271,10 +321,21 @@ export function solve(dataset, options = {}) {
 }
 
 /**
+ * 把"展开层数"归一成数字：不传/非法值 = 无限展开（老行为），
+ * 传 0 表示目标本身不展开，传 1/2/3… 表示只展开这么多层。
+ */
+export function normalizeDepth(value) {
+  if (value === undefined || value === null || value === '') return Number.POSITIVE_INFINITY;
+  if (value === 'all' || value === 'Infinity') return Number.POSITIVE_INFINITY;
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return Number.POSITIVE_INFINITY;
+  return Math.floor(num);
+}
+
+/**
  * 采集清单终值：以树的分配结果为准（树上每个分支实际拿了多少份），
  * 保证"采集清单 = 树状图里各分支之和"。
- */
-export function settleRaw(dataset, solution, allocation) {
+ */export function settleRaw(dataset, solution, allocation) {
   const raw = [];
   for (const item of solution.raw) {
     const decided = allocation.shortfalls.get(item.id);
@@ -341,6 +402,12 @@ export function variantKey(variant) {
     .map((m) => `${m.material}x${m.slotCount}`)
     .join(',')}`;
 }
+
+
+
+
+
+
 
 
 
