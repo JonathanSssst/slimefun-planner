@@ -184,6 +184,13 @@ slimefun-planner/
 工作流：  .github/workflows/deploy-pages.yml（测试 → 组装 → 部署）
 ```
 
+仓库的 About 描述、主页链接和 topics 用脚本同步（中文务必走这个脚本，
+PowerShell 5.1 直接发 JSON 会因本地编码在 GitHub 上显示成乱码）：
+
+```bat
+node --use-system-ca tools\set-repo-meta.mjs
+```
+
 自己 fork 一份再发布：
 
 1. fork 本仓库（或把整个 `slimefun-planner` 目录作为新仓库推上去）。

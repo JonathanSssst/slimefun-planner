@@ -1,0 +1,5 @@
+{
+  "description": "粘液科技配方树助手：输入想做的物品，输出要收集的材料清单、合成顺序和树状图。纯离线单页工具，GitHub Pages 直接可用。",
+  "homepage": "https://jonathansssst.github.io/slimefun-planner/",
+  "topics": ["minecraft", "slimefun", "slimefun4", "recipe", "crafting-calculator", "planner", "fabric", "mc"]
+}

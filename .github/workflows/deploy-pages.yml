@@ -26,8 +26,8 @@ jobs:
       - name: 组装静态站点
         run: |
           mkdir -p _site
-          cp -r index.html ui engine data _site/
-          # 静态托管没有后端，去掉本地服务相关文件（它们本来也不在拷贝范围内）
+          cp -r index.html ui engine data docs _site/
+          # docs 里只有截图，供 README 引用；静态托管没有后端，服务端脚本不参与部署
           ls -R _site | head -40
 
       - uses: actions/upload-pages-artifact@v3
