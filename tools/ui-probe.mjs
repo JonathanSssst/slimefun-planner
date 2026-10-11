@@ -1,0 +1,162 @@
+/**
+ * 界面自检：用最小 DOM 桩跑一遍 ui/app.js 的完整流程，
+ * 确认没有运行时错误、且四个页签都渲染出了内容。
+ *
+ * 用法：node tools/ui-probe.mjs [主页地址]
+ */
+
+const BASE = process.argv[2] || 'http://127.0.0.1:8765';
+
+class FakeClassList {
+  constructor() { this.set = new Set(); }
+  add(...names) { names.forEach((name) => this.set.add(name)); }
+  remove(...names) { names.forEach((name) => this.set.delete(name)); }
+  toggle(name, force) {
+    const shouldAdd = force === undefined ? !this.set.has(name) : force;
+    if (shouldAdd) this.set.add(name); else this.set.delete(name);
+    return shouldAdd;
+  }
+  contains(name) { return this.set.has(name); }
+}
+
+class FakeElement {
+  constructor(tag = 'div', id = '') {
+    this.tagName = tag.toUpperCase();
+    this.id = id;
+    this.children = [];
+    this.classList = new FakeClassList();
+    this.dataset = {};
+    this.style = {};
+    this.attributes = {};
+    this.listeners = {};
+    this.value = '';
+    this.textContent = '';
+    this._html = '';
+    this.hidden = false;
+    this.checked = false;
+  }
+  set innerHTML(html) {
+    this._html = String(html);
+    // 极简解析：记录带 data-* 与 id 的元素数量，够做"渲染是否为空"的判断
+    this._nodeCount = (this._html.match(/<div|<tr|<label|<button|<span/g) || []).length;
+  }
+  get innerHTML() { return this._html; }
+  addEventListener(type, handler) {
+    (this.listeners[type] ||= []).push(handler);
+  }
+  dispatch(type, event = {}) {
+    for (const handler of this.listeners[type] || []) handler({ target: this, preventDefault() {}, ...event });
+  }
+  querySelector(selector) { return this._find(selector); }
+  querySelectorAll(selector) {
+    const found = [];
+    this._collect(selector, found);
+    return found;
+  }
+  _find(selector) {
+    const all = this.querySelectorAll(selector);
+    return all[0] || null;
+  }
+  _collect(selector, out) {
+    for (const child of this.children) {
+      if (matches(child, selector)) out.push(child);
+      child._collect(selector, out);
+    }
+  }
+  closest() { return null; }
+  appendChild(child) { this.children.push(child); return child; }
+  click() { this.dispatch('click'); }
+  setAttribute(name, value) { this.attributes[name] = value; }
+  getBoundingClientRect() { return { top: 0, left: 0, width: 100, height: 20 }; }
+  focus() {}
+}
+
+function matches(element, selector) {
+  if (selector.startsWith('#')) return element.id === selector.slice(1);
+  if (selector.startsWith('.')) return element.classList.contains(selector.slice(1));
+  if (selector.startsWith('input[')) {
+    const attr = selector.slice(6, -1);
+    const [name, value] = attr.split('=');
+    const key = name.trim();
+    if (value === undefined) return element.tagName === 'INPUT' && key in element.dataset;
+    const wanted = value.replace(/["']/g, '');
+    return element.tagName === 'INPUT' && element.dataset[key] === wanted;
+  }
+  if (selector === 'input[type=radio]') return element.tagName === 'INPUT' && element.type === 'radio';
+  return element.tagName === selector.toUpperCase();
+}
+
+const registry = new Map();
+const documentStub = {
+  createElement: (tag) => new FakeElement(tag),
+  querySelector: (selector) => {
+    if (!registry.has(selector)) {
+      const id = selector.startsWith('#') ? selector.slice(1) : '';
+      const element = new FakeElement('div', id);
+      registry.set(selector, element);
+    }
+    return registry.get(selector);
+  },
+  querySelectorAll: () => [],
+  addEventListener: () => {},
+  body: new FakeElement('body'),
+};
+
+globalThis.document = documentStub;
+globalThis.window = { addEventListener: () => {} };
+globalThis.location = { hostname: new URL(BASE).hostname, href: `${BASE}/`, protocol: 'http:' };
+// Node 里 navigator 是只读 getter，用 defineProperty 补上 clipboard
+try {
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { clipboard: { writeText: async () => {} } },
+    configurable: true,
+  });
+} catch (err) {
+  console.warn('navigator 桩未装上：', err.message);
+}
+globalThis.localStorage = {
+  store: new Map(),
+  getItem(key) { return this.store.has(key) ? this.store.get(key) : null; },
+  setItem(key, value) { this.store.set(key, value); },
+};
+globalThis.alert = (message) => console.log('[alert]', message);
+globalThis.Blob = class { constructor(parts) { this.parts = parts; } };
+globalThis.URL.createObjectURL = () => 'blob:fake';
+globalThis.URL.revokeObjectURL = () => {};
+
+const realFetch = globalThis.fetch;
+globalThis.fetch = (url, options) => realFetch(new URL(url, BASE).toString(), options);
+
+let failures = 0;
+function check(label, condition, detail = '') {
+  if (condition) {
+    console.log(`  ✔ ${label}`);
+  } else {
+    failures += 1;
+    console.log(`  ✖ ${label} ${detail}`);
+  }
+}
+
+const errors = [];
+process.on('unhandledRejection', (err) => errors.push(err));
+process.on('uncaughtException', (err) => errors.push(err));
+
+const { pathToFileURL } = await import('node:url');
+await import(pathToFileURL(new URL('../ui/app.js', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')).href);
+
+await new Promise((resolve) => setTimeout(resolve, 2500));
+
+console.log('\n界面自检结果：');
+check('无未捕获异常', errors.length === 0, errors.map((err) => err.message).join('; '));
+check('数据集信息已渲染', /配方条目/.test(documentStub.querySelector('#datasetInfo').innerHTML));
+check('概览卡片已渲染', /card-value/.test(documentStub.querySelector('#summaryGrid').innerHTML));
+check('树状图已渲染节点', /node-head/.test(documentStub.querySelector('#treeView').innerHTML));
+check('采集清单已渲染', /<table|不需要额外采集/.test(documentStub.querySelector('#materialsView').innerHTML));
+check('合成工序已渲染', /<table/.test(documentStub.querySelector('#orderView').innerHTML));
+check('设置页基础材料已渲染', /base-group/.test(documentStub.querySelector('#baseGroups').innerHTML));
+
+const treeHtml = documentStub.querySelector('#treeView').innerHTML;
+console.log('\n树状图首节点预览：');
+console.log(treeHtml.split('\n').slice(0, 12).join('\n').slice(0, 700));
+
+process.exit(failures === 0 ? 0 : 1);

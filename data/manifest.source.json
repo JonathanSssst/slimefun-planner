@@ -1,0 +1,283 @@
+{
+  "files": [
+    {
+      "name": "SlimeFun4.jsonl",
+      "displayName": "SimeFun4配方",
+      "version": "1.0",
+      "description": "slimefun本体(不包含附属插件)",
+      "author": "星環工程師",
+      "size": 298962,
+      "forced": true
+    },
+    {
+      "name": "动力科技.jsonl",
+      "displayName": "动力科技配方",
+      "version": "1.0",
+      "description": "动力科技附属插件配方",
+      "author": "星環工程師",
+      "size": 39007,
+      "forced": false
+    },
+    {
+      "name": "匠魂工艺.jsonl",
+      "displayName": "匠魂工艺",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 458850,
+      "forced": false
+    },
+    {
+      "name": "地质资源勘探附属.jsonl",
+      "displayName": "地质资源勘探附属",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 2069,
+      "forced": false
+    },
+    {
+      "name": "工业拓展附属.jsonl",
+      "displayName": "工业拓展附属",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 34139,
+      "forced": false
+    },
+    {
+      "name": "幸运方块.jsonl",
+      "displayName": "幸运方块",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 2360,
+      "forced": false
+    },
+    {
+      "name": "幽灵方块.jsonl",
+      "displayName": "幽灵方块",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 240833,
+      "forced": false
+    },
+    {
+      "name": "异域花园.jsonl",
+      "displayName": "异域花园配方",
+      "version": "1.0",
+      "description": "异域花园附属插件配方",
+      "author": "星環工程師",
+      "size": 109530,
+      "forced": false
+    },
+    {
+      "name": "彩色末影箱.jsonl",
+      "displayName": "彩色末影箱",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 74992,
+      "forced": false
+    },
+    {
+      "name": "战争工艺.jsonl",
+      "displayName": "战争工艺配方",
+      "version": "1.0",
+      "description": "战争工艺附属插件配方",
+      "author": "星環工程師",
+      "size": 50257,
+      "forced": false
+    },
+    {
+      "name": "无尽贪婪.jsonl",
+      "displayName": "无尽贪婪",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 171931,
+      "forced": false
+    },
+    {
+      "name": "无底存储2.jsonl",
+      "displayName": "无底存储2",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 19686,
+      "forced": false
+    },
+    {
+      "name": "星际科技.jsonl",
+      "displayName": "星际科技配方",
+      "version": "1.0",
+      "description": "星际科技附属插件配方",
+      "author": "星環工程師",
+      "size": 64051,
+      "forced": false
+    },
+    {
+      "name": "更多发电机.jsonl",
+      "displayName": "更多发电机配方",
+      "version": "1.0",
+      "description": "此插件是本网页作者写的sf扩展插件,添加了几个日月发电机和量子发电机",
+      "author": "星環工程師",
+      "size": 11563,
+      "forced": false
+    },
+    {
+      "name": "更多装备.jsonl",
+      "displayName": "更多装备",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 28445,
+      "forced": false
+    },
+    {
+      "name": "最终科技.jsonl",
+      "displayName": "最终科技",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 87677,
+      "forced": false
+    },
+    {
+      "name": "末地科技.jsonl",
+      "displayName": "末地科技配方",
+      "version": "1.0",
+      "description": "末地科技附属插件配方",
+      "author": "星環工程師",
+      "size": 20140,
+      "forced": false
+    },
+    {
+      "name": "村民工具.jsonl",
+      "displayName": "村民工具",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 4187,
+      "forced": false
+    },
+    {
+      "name": "梵恩科技.jsonl",
+      "displayName": "FN科技",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 126482,
+      "forced": false
+    },
+    {
+      "name": "水晶秘史.jsonl",
+      "displayName": "水晶秘史",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 122600,
+      "forced": false
+    },
+    {
+      "name": "炼金自传.jsonl",
+      "displayName": "炼金自传",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 22529,
+      "forced": false
+    },
+    {
+      "name": "物品栏宠物.jsonl",
+      "displayName": "物品栏宠物",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 18586,
+      "forced": false
+    },
+    {
+      "name": "狐娘科技.jsonl",
+      "displayName": "神秘科技",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 48746,
+      "forced": false
+    },
+    {
+      "name": "生物头颅.jsonl",
+      "displayName": "生物头颅",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 12445,
+      "forced": false
+    },
+    {
+      "name": "等价交换2.jsonl",
+      "displayName": "等价交换2",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 24214,
+      "forced": false
+    },
+    {
+      "name": "简易材料生成器.jsonl",
+      "displayName": "简易材料生成器",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 9735,
+      "forced": false
+    },
+    {
+      "name": "网络附属.jsonl",
+      "displayName": "网络附属",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 33692,
+      "forced": false
+    },
+    {
+      "name": "蓬松机器.jsonl",
+      "displayName": "蓬松机器配方",
+      "version": "1.0",
+      "description": "蓬松机器附属插件配方",
+      "author": "星環工程師",
+      "size": 31621,
+      "forced": false
+    },
+    {
+      "name": "附魔淬炼附属.jsonl",
+      "displayName": "附魔淬炼附属",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 18559,
+      "forced": false
+    },
+    {
+      "name": "额外工具附属.jsonl",
+      "displayName": "额外工具附属",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 5868,
+      "forced": false
+    },
+    {
+      "name": "鸡因工程.jsonl",
+      "displayName": "鸡因工程",
+      "version": "1.0",
+      "description": "自动生成的配方文件",
+      "author": "未知",
+      "size": 23273,
+      "forced": false
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{"name": "地质资源勘探附属", "version": "1.0", "description": "自动生成的配方文件", "author": "未知", "forced": false}
+{"id": "GeoMiner:IRON_ORE_CHUNK", "name": "铁矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:GOLD_ORE_CHUNK", "name": "金矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:COPPER_ORE_CHUNK", "name": "铜矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:TIN_ORE_CHUNK", "name": "锡矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:SILVER_ORE_CHUNK", "name": "银矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:ALUMINUM_ORE_CHUNK", "name": "铝矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:LEAD_ORE_CHUNK", "name": "铅矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:ZINC_ORE_CHUNK", "name": "锌矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:MAGNESIUM_ORE_CHUNK", "name": "镁矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:NICKEL_ORE_CHUNK", "name": "镍矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}
+{"id": "GeoMiner:COBALT_ORE_CHUNK", "name": "钴矿石块", "recipeType": "slimefun:geo_miner", "recipe": [null, null, null, null, null, null, null, null, null], "output": 1}

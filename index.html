@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>粘液科技配方树助手</title>
+<link rel="stylesheet" href="ui/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">⚙</span>
+    <div>
+      <h1>粘液科技配方树助手</h1>
+      <p class="sub">输入想做的物品 → 得到要收集的材料、合成顺序和树状图</p>
+    </div>
+  </div>
+  <div class="dataset-info" id="datasetInfo">正在加载配方数据…</div>
+</header>
+
+<main>
+  <section class="panel input-panel">
+    <label class="field-label" for="targetInput">要做什么？（支持一行一个，或「物品 x 数量」）</label>
+    <textarea id="targetInput" rows="3" placeholder="例如：&#10;人造钻石 x 2&#10;钢锭 128&#10;铁粉 ×64"></textarea>
+
+    <div class="chips" id="quickChips"></div>
+
+    <div class="input-actions">
+      <button id="planBtn" class="primary">生成配方树</button>
+      <button id="clearBtn">清空</button>
+      <label class="checkbox"><input type="checkbox" id="autoSelect" checked> 多路线自动选最省生料</label>
+      <span class="search-wrap">
+        <input type="search" id="searchInput" placeholder="搜索物品（中文名或 ID）…" autocomplete="off">
+        <div class="suggest" id="suggestBox" hidden></div>
+      </span>
+    </div>
+    <div class="notice" id="inputNotice" hidden></div>
+  </section>
+
+  <section class="panel summary-panel" id="summaryPanel" hidden>
+    <h2>总览</h2>
+    <div class="summary-grid" id="summaryGrid"></div>
+    <div class="warn-list" id="warnList"></div>
+  </section>
+
+  <section class="panel tabs-panel" id="resultPanel" hidden>
+    <nav class="tabs">
+      <button class="tab active" data-tab="tree">树状图</button>
+      <button class="tab" data-tab="materials">采集清单 <span class="badge" id="materialBadge">0</span></button>
+      <button class="tab" data-tab="order">合成工序 <span class="badge" id="orderBadge">0</span></button>
+      <button class="tab" data-tab="routes">路线对比 <span class="badge" id="routeBadge">0</span></button>
+      <button class="tab" data-tab="settings">设置</button>
+    </nav>
+
+    <div class="tab-body">
+      <div class="tab-pane active" data-pane="tree">
+        <div class="toolbar">
+          <button id="expandAll">全部展开</button>
+          <button id="collapseAll">全部折叠</button>
+          <button id="exportText">导出文本</button>
+          <span class="hint">点击节点可折叠。节点显示「整棵树一共要合成几次」。</span>
+        </div>
+        <div class="tree" id="treeView"></div>
+      </div>
+
+      <div class="tab-pane" data-pane="materials">
+        <div class="toolbar">
+          <button id="exportMaterials">导出 CSV</button>
+          <button id="copyMaterials">复制文本</button>
+          <span class="hint">同一个材料在多个分支共用时只算一次总量。</span>
+        </div>
+        <div class="table-wrap" id="materialsView"></div>
+      </div>
+
+      <div class="tab-pane" data-pane="order">
+        <div class="toolbar">
+          <span class="hint">按「先做这个再做那个」排好；同一材料被多个分支共用时只出现一次。</span>
+        </div>
+        <div class="table-wrap" id="orderView"></div>
+      </div>
+
+      <div class="tab-pane" data-pane="routes">
+        <div class="toolbar">
+          <span class="hint">一个物品有多条合成途径时，默认选最省生料的那条，也可以手动切换。</span>
+        </div>
+        <div class="table-wrap" id="routesView"></div>
+      </div>
+
+      <div class="tab-pane" data-pane="settings">
+        <h3>基础材料名单</h3>
+        <p class="hint">名单里的物品不再展开配方，直接算作"要去弄到的东西"。目标物品即使命中名单，只要它有配方就仍会展开。</p>
+        <div class="base-groups" id="baseGroups"></div>
+
+        <h3>我已有的库存</h3>
+        <p class="hint">填「物品 = 数量」，一行一个。库存只抵扣"要去采集的数量"，不改变合成步骤。</p>
+        <textarea id="inventoryInput" rows="3" placeholder="铁锭 = 64&#10;煤炭 = 128"></textarea>
+
+        <h3>手工补录配方</h3>
+        <p class="hint">数据里没有的配方（附属插件、服务端魔改）可以在这里补。
+          补录保存在<b>你自己的浏览器</b>里，不影响其他人；可以导出成 JSON 分享，也可以导入别人给的补录。</p>
+        <textarea id="overrideInput" rows="6" placeholder='[
+  {
+    "id": "simefun4:MY_ITEM",
+    "name": "我的物品",
+    "recipeType": "增强型工作台",
+    "output": 1,
+    "materials": { "simefun4:STEEL_INGOT": 2, "IRON_INGOT": 1 }
+  }
+]'></textarea>
+        <div class="input-actions">
+          <button id="saveOverrides" class="primary">保存到浏览器</button>
+          <button id="exportOverrides">导出 JSON</button>
+          <button id="importOverrides">导入 JSON</button>
+          <button id="reloadOverrides">还原为已保存</button>
+          <input type="file" id="importOverrideFile" accept=".json,application/json" hidden>
+        </div>
+
+        <h3>数据来源</h3>
+        <p class="hint" id="sourceInfo"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>本地离线运行 · 数据来自公开配方数据集（Slimefun4 本体 + 可选附属） · 概率产出按期望值折算</span>
+</footer>
+
+<script type="module" src="ui/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "slimefun-planner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "粘液科技配方树助手：输入目标物品，输出采集清单与树状合成图",
+  "scripts": {
+    "test": "node --test tests/",
+    "build:data": "node tools/build-data.mjs",
+    "serve": "node tools/serve.mjs"
+  }
+}

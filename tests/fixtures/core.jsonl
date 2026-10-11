@@ -1,0 +1,9 @@
+{"id":"simefun4:IRON_DUST","name":"铁粉","recipeType":"矿石粉碎机","recipe":[{"material":"IRON_ORE","name":"铁矿石"}],"output":2}
+{"id":"simefun4:COPPER_DUST","name":"铜粉","recipeType":"矿石粉碎机","recipe":[{"material":"COPPER_ORE","name":"铜矿石"}],"output":2}
+{"id":"simefun4:STEEL_INGOT","name":"钢锭","recipeType":"冶炼炉","recipe":[{"material":"simefun4:IRON_DUST","name":"铁粉"},{"material":"C","name":"碳"},{"material":"IRON_INGOT","name":"铁锭"}],"output":1}
+{"id":"simefun4:NICKEL_INGOT","name":"镍锭","recipeType":"冶炼炉","recipe":[{"material":"simefun4:IRON_DUST","name":"铁粉"},{"material":"IRON_INGOT","name":"铁锭"},{"material":"simefun4:COPPER_DUST","name":"铜粉"}],"output":1}
+{"id":"simefun4:STEEL_PLATE","name":"钢板","recipeType":"压力机","recipe":[{"material":"simefun4:STEEL_INGOT","name":"钢锭"},{"material":"simefun4:STEEL_INGOT","name":"钢锭"},{"material":"IRON_INGOT","name":"铁锭"}],"output":1}
+{"id":"simefun4:ADDON_ONLY_DUST","name":"附属铁粉","recipeType":"洗矿机","recipe":[{"material":"simefun4:SIFTED_ORE","name":"筛矿"}],"output":4}
+{"id":"simefun4:GATHER_ONLY","name":"怪物掉落物","recipeType":"生物掉落","recipe":[]}
+{"id":"simefun4:CYCLE_A","name":"循环甲","recipeType":"增强型工作台","recipe":[{"material":"simefun4:CYCLE_B","name":"循环乙"}],"output":1}
+{"id":"simefun4:CYCLE_B","name":"循环乙","recipeType":"增强型工作台","recipe":[{"material":"simefun4:CYCLE_A","name":"循环甲"}],"output":1}

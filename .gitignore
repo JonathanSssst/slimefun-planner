@@ -1,0 +1,15 @@
+# 依赖与缓存
+node_modules/
+*.log
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 本地临时产物
+research/
+_site/
+*.bak
