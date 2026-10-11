@@ -1,24 +1,32 @@
 # 粘液科技配方树助手
 
+**在线版（免安装）：<https://jonathansssst.github.io/slimefun-planner/>**
+
+![界面截图](docs/screenshot.png)
+
 输入「想做的物品 + 数量」，输出**要去收集的材料清单**、**按顺序的合成工序**和**可折叠的树状图**。
-纯本地离线运行，不联网、不上传任何数据。
+纯前端运行，不联网、不上传任何数据。
 
 > 适用：Minecraft 1.21.x + Fabric 客户端连的粘液科技服务器（Slimefun4 本体 + 常见附属）。
 > 数据是公开配方数据集，**不需要**客户端装任何 mod，也不需要服务端配合。
 
 ---
 
-## 快速开始
+## 三种用法
 
-双击 **`启动配方助手.cmd`**（或手动 `node tools/serve.mjs`），浏览器会自动打开：
+| 方式 | 适合谁 | 怎么用 |
+|---|---|---|
+| **在线版** | 任何人，免安装 | 打开 <https://jonathansssst.github.io/slimefun-planner/> |
+| **本地网页版** | 想离线用、想改数据 | 双击 `启动配方助手.cmd`，浏览器打开 `http://127.0.0.1:8791/` |
+| **命令行版** | 想批量算/接脚本 | `node tools\cli.mjs "人造钻石 x1"` |
 
-```
-http://127.0.0.1:8791/
-```
+两种网页版功能完全一样，区别只有一个：**手工补录的保存位置**。
 
-- 端口被占用会自动顺延，控制台会打印真实地址。
-- 想手动指定端口：`set SF_PORT=9000` 后再启动。
-- 命令行版（不需要浏览器）：`node tools/cli.mjs "人造钻石 x1"`。
+- 在线版（GitHub Pages）没有后端，补录保存在**你自己的浏览器**（localStorage），不影响别人；
+  可以用「导出 JSON / 导入 JSON」和队友交换补录，或者直接给仓库提 PR 改 `data/overrides.json`。
+- 本地版会把补录写回 `data/overrides.json`，方便你自己维护一份公共补录。
+
+---
 
 ### 基本用法
 
@@ -134,7 +142,11 @@ slimefun-planner/
 
 ## 手工补录配方
 
-数据里没有的物品（附属、魔改、活动物品）可以在「设置 → 手工补录配方」里补，保存到 `data/overrides.json`：
+数据里没有的物品（附属、魔改、活动物品）可以在「设置 → 手工补录配方」里补。
+
+- **在线版**：点「保存到浏览器」存在你自己的浏览器里，可「导出 JSON」分享或备份，也可导入别人的补录。
+- **本地版**：同样存在浏览器；想做成"所有人都能用"的公共补录，直接把下面这段 JSON 写进
+  `data/overrides.json` 并提交即可（在线版会读取它，本地浏览器里的补录优先于它）。
 
 ```json
 [
@@ -162,6 +174,38 @@ slimefun-planner/
 
 ---
 
+## 部署到自己的 GitHub Pages
+
+仓库已经配好自动部署：推送到 `main` 就会跑单元测试并把静态站点发到 Pages。
+
+```
+在线地址：https://jonathansssst.github.io/slimefun-planner/
+仓库地址：https://github.com/JonathanSssst/slimefun-planner
+工作流：  .github/workflows/deploy-pages.yml（测试 → 组装 → 部署）
+```
+
+自己 fork 一份再发布：
+
+1. fork 本仓库（或把整个 `slimefun-planner` 目录作为新仓库推上去）。
+2. 仓库 **Settings → Pages → Source** 选 **GitHub Actions**。
+3. 推送到 `main`，等 Actions 跑完，地址就是 `https://<你的用户名>.github.io/<仓库名>/`。
+
+站点只用 `index.html`、`ui/`、`engine/`、`data/` 四个目录，全部是静态文件，任何静态托管
+（Cloudflare Pages、Netlify、Vercel、自己服务器）丢上去就能用。
+
+---
+
+## 更新线上内容
+
+| 想改什么 | 怎么做 |
+|---|---|
+| 补一条配方（所有人可见） | 改 `data/overrides.json` → 提交 → Actions 自动重新部署 |
+| 加一个附属插件的数据 | 把 `.jsonl` 放进 `data/recipes.addons/` → 提交 |
+| 改算法/界面 | 改 `engine/` 或 `ui/` → 提交；工作流会先跑单测再部署 |
+| 只自己用、不想动仓库 | 在页面「设置」里补录并保存到浏览器，或导出/导入 JSON |
+
+---
+
 ## 已知限制（用之前请知道）
 
 1. **数据集每件物品只记录一条配方**。例如铁粉记的是「矿石粉碎机：铁矿石 → 铁粉×2」，
@@ -180,9 +224,22 @@ slimefun-planner/
 ## 自检与测试
 
 ```bat
-node --test tests/engine.test.mjs     :: 引擎单元测试（9 项）
-node tools/ui-probe.mjs               :: 界面自检（需要先启动服务）
-python tools/analyze_dataset.py data/recipes.core.jsonl   :: 数据集体检
+node --test tests/engine.test.mjs tests/overrides.test.mjs   :: 单元测试（13 项）
+node tools/ui-probe.mjs http://127.0.0.1:8791                 :: 界面自检（需先启动服务）
+node tools/ui-probe.mjs https://jonathansssst.github.io/slimefun-planner/   :: 线上站点自检
+python tools/analyze_dataset.py data/recipes.core.jsonl       :: 数据集体检
+```
+
+单元测试覆盖：按格计数、一次产出多件向上取整、共享中间产物合并、基础材料截断展开、
+库存抵扣采购清单、循环依赖检出、多路线择优、采集型条目不展开、无配方数据标记，
+以及补录的覆盖/新增/设为采集终点、数据集完整性。
+
+界面自检用一个最小 DOM 桩把 `ui/app.js` 完整跑一遍，验证「数据加载 → 计算 → 四个页签渲染」
+全程无异常；线上站点可以用同一个命令验证，例如线上返回：
+
+```
+✔ 无未捕获异常   ✔ 树状图已渲染节点   ✔ 采集清单已渲染   ✔ 合成工序已渲染
+树状图首节点：人造钻石 ×1（压力机 1 次 → 1 个，解锁 10）→ 碳块 ×1 → 压缩碳 ×8 → 碳 ×8 → 煤炭 ×8
 ```
 
 单元测试覆盖：按格计数、一次产出多件向上取整、共享中间产物合并、基础材料截断展开、
