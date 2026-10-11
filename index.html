@@ -13,7 +13,7 @@
     <span class="logo">⚙</span>
     <div>
       <h1>粘液科技指南 · 配方树助手</h1>
-      <p class="sub">左侧翻物品、看材料统计，右侧看配方与合成细节</p>
+      <p class="sub">左侧切换页签，右侧查配方、挑物品、算材料</p>
     </div>
   </div>
   <div class="topbar-right">
@@ -25,87 +25,122 @@
 </header>
 
 <div class="layout">
-  <!-- ==================== 侧边栏 ==================== -->
+  <!-- ============ 侧边栏：只有两个页签 ============ -->
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-top">
-      <div class="search-wrap">
-        <input type="search" id="itemInput" placeholder="搜索物品（中文名 / ID）" autocomplete="off">
-        <div class="suggest" id="suggestBox" hidden></div>
-      </div>
-      <div class="add-row">
-        <input type="number" id="qtyInput" min="1" step="1" value="1" inputmode="numeric" title="数量">
-        <button id="addTargetBtn" class="primary">加为目标</button>
+    <nav class="side-tabs" aria-label="功能页签">
+      <button class="side-tab active" data-view="book">
+        <span class="side-tab-icon">📖</span>
+        <span class="side-tab-text">配方书</span>
+      </button>
+      <button class="side-tab" data-view="materials">
+        <span class="side-tab-icon">📊</span>
+        <span class="side-tab-text">材料统计</span>
+        <span class="badge zero" id="materialBadge">0</span>
+      </button>
+    </nav>
+  </aside>
+
+  <!-- ============ 主区 ============ -->
+  <main class="content">
+    <!-- ---------- 配方书 ---------- -->
+    <div class="view" data-view-panel="book">
+      <section class="panel picker-panel">
+        <h2>挑物品</h2>
+        <p class="hint">搜索或从下面的分类里点选；填好数量后点「加为目标」，点物品名字可以看配方。</p>
+        <div class="picker">
+          <div class="picker-field grow">
+            <label class="field-label" for="itemInput">物品</label>
+            <div class="search-wrap">
+              <input type="search" id="itemInput" placeholder="输入中文名或 ID 搜索，例如：铁粉 / IRON_DUST" autocomplete="off">
+              <div class="suggest" id="suggestBox" hidden></div>
+            </div>
+          </div>
+          <div class="picker-field qty">
+            <label class="field-label" for="qtyInput">数量</label>
+            <input type="number" id="qtyInput" min="1" step="1" value="1" inputmode="numeric">
+          </div>
+          <div class="picker-field">
+            <label class="field-label">&nbsp;</label>
+            <button id="addTargetBtn" class="primary">加为目标</button>
+          </div>
+        </div>
+        <div class="chips" id="goalChips"></div>
+        <div class="notice" id="inputNotice" hidden></div>
+      </section>
+
+      <div class="book-grid">
+        <section class="panel nav-panel">
+          <h2>分类</h2>
+          <nav class="tree-nav" id="categoryNav" aria-label="物品分类">
+            <p class="empty small">正在载入分类…</p>
+          </nav>
+        </section>
+
+        <section class="panel detail-panel" id="detailPanel">
+          <div class="detail-nav">
+            <button id="backBtn" class="icon-btn" title="返回上一个物品" hidden>←</button>
+          </div>
+          <div class="recipe-host" id="recipeHost">
+            <p class="empty">从左边分类里选一个物品，或者在上面搜索 —— 这里会显示它的配方与用途。</p>
+          </div>
+        </section>
       </div>
     </div>
 
-    <!-- 侧边栏只保留两个视图切换 -->
-    <nav class="side-tabs">
-      <button class="side-tab active" data-view="book">📖 配方书</button>
-      <button class="side-tab" data-view="materials">📊 材料统计 <span class="badge zero" id="materialBadge">0</span></button>
-    </nav>
-
-    <div class="side-panel" data-side-panel="book">
-      <div class="goal-box compact">
-        <div class="goal-head">
-          <span>我的目标 <span class="badge zero" id="goalBadge">0</span></span>
+    <!-- ---------- 材料统计 ---------- -->
+    <div class="view" data-view-panel="materials" hidden>
+      <section class="panel goal-panel">
+        <h2>合成目标</h2>
+        <p class="hint">左边「配方书」里挑好物品后回到这里算材料；也可以直接下面添加。</p>
+        <div class="picker">
+          <div class="picker-field grow">
+            <label class="field-label" for="itemInput2">物品</label>
+            <div class="search-wrap">
+              <input type="search" id="itemInput2" placeholder="输入中文名或 ID 搜索" autocomplete="off">
+              <div class="suggest" id="suggestBox2" hidden></div>
+            </div>
+          </div>
+          <div class="picker-field qty">
+            <label class="field-label" for="qtyInput2">数量</label>
+            <input type="number" id="qtyInput2" min="1" step="1" value="1" inputmode="numeric">
+          </div>
+          <div class="picker-field">
+            <label class="field-label">&nbsp;</label>
+            <button id="addTargetBtn2" class="primary">加为目标</button>
+          </div>
         </div>
-        <div class="target-list" id="targetList"></div>
+
+        <div class="target-list wide" id="targetList"></div>
+        <div class="hint small" id="goalHint">还没有目标：在上面搜索，或去「配方书」里挑。</div>
+        <div class="chips" id="goalChips2"></div>
+
         <details class="batch-box">
-          <summary>批量输入</summary>
-          <textarea id="targetInput" rows="3" placeholder="物品名 x 数量，一行一个"></textarea>
+          <summary>批量输入（一行一个：物品名 x 数量）</summary>
+          <textarea id="targetInput" rows="3" placeholder="人造钻石 x 2&#10;钢锭 128&#10;铁粉 ×64"></textarea>
           <div class="input-actions">
             <button id="parseBatchBtn">从文本生成清单</button>
           </div>
         </details>
-      </div>
-      <nav class="tree-nav" id="categoryNav" aria-label="物品分类">
-        <p class="empty small">正在载入分类…</p>
-      </nav>
-    </div>
 
-    <div class="side-panel" data-side-panel="materials" hidden>
-      <div class="controls">
-        <div class="depth-bar compact">
-          <label class="field-label" for="depthSelect">采集清单粒度</label>
-          <select id="depthSelect">
-            <option value="1" selected>只到直接投料（铜粉 / 铁粉 / 压缩碳）</option>
-            <option value="2">再展开一层</option>
-            <option value="3">展开三层</option>
-            <option value="all">全部展开到生料（煤炭 / 沙砾 / 铁矿石）</option>
-          </select>
-          <span class="hint small" id="depthHint"></span>
-        </div>
-        <div class="input-actions compact">
-          <button id="planBtn" class="primary">生成配方树</button>
-          <button id="clearBtn">清空目标</button>
-          <label class="checkbox"><input type="checkbox" id="autoSelect" checked> 自动择优</label>
-        </div>
-        <div class="summary-mini" id="summaryMini"></div>
-      </div>
-    </div>
-
-    <div class="sidebar-bottom">
-      <div class="notice" id="inputNotice" hidden></div>
-      <div class="hint small" id="goalHint">还没有目标：在上面搜索或从分类里点物品，用「加为目标」加入。</div>
-    </div>
-  </aside>
-
-  <!-- ==================== 主区 ==================== -->
-  <main class="content">
-    <!-- 配方书视图 -->
-    <div class="view" data-view-panel="book">
-      <section class="panel detail-panel" id="detailPanel">
-        <div class="detail-nav">
-          <button id="backBtn" class="icon-btn" title="返回上一个物品" hidden>←</button>
-        </div>
-        <div class="recipe-host" id="recipeHost">
-          <p class="empty">从左侧分类里选一个物品，或者在上面搜索 —— 这里会显示它的配方与用途。</p>
+        <div class="goal-actions">
+          <div class="depth-bar">
+            <label class="field-label" for="depthSelect">采集清单粒度</label>
+            <select id="depthSelect">
+              <option value="1" selected>只到直接投料（铜粉 / 铁粉 / 压缩碳）</option>
+              <option value="2">再展开一层</option>
+              <option value="3">展开三层</option>
+              <option value="all">全部展开到生料（煤炭 / 沙砾 / 铁矿石）</option>
+            </select>
+            <span class="hint" id="depthHint"></span>
+          </div>
+          <div class="input-actions">
+            <button id="planBtn" class="primary">生成配方树</button>
+            <button id="clearBtn">清空目标</button>
+            <label class="checkbox"><input type="checkbox" id="autoSelect" checked> 多路线自动选最省生料</label>
+          </div>
         </div>
       </section>
-    </div>
 
-    <!-- 材料统计视图 -->
-    <div class="view" data-view-panel="materials" hidden>
       <section class="panel summary-panel" id="summaryPanel" hidden>
         <h2>总览</h2>
         <div class="summary-grid" id="summaryGrid"></div>
@@ -157,11 +192,11 @@
       </section>
 
       <section class="panel" id="emptyResultPanel" hidden>
-        <p class="empty">还没有生成配方树。先在左侧「配方书」里挑物品、加为目标，然后点「生成配方树」。</p>
+        <p class="empty">还没有生成配方树。先在上面挑物品、加为目标，然后点「生成配方树」。</p>
       </section>
 
       <details class="panel settings-panel">
-        <summary>设置与手工补录</summary>
+        <summary>基础材料 / 库存 / 图标 / 手工补录</summary>
         <div class="settings-body">
           <h3>基础材料名单</h3>
           <p class="hint">名单里的物品不再展开配方，直接算作"要去弄到的东西"。目标物品即使命中名单，只要它有配方就仍会展开。</p>

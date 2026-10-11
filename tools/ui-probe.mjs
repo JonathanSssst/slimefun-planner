@@ -206,9 +206,9 @@ check('主题按钮标签正确',
 check('数据集信息已渲染', /配方条目/.test(documentStub.querySelector('#datasetInfo').innerHTML));
 check('侧边栏分类树已渲染', /nav-group|nav-item/.test(documentStub.querySelector('#categoryNav').innerHTML));
 check('目标清单已渲染（选框添加）', /target-row/.test(documentStub.querySelector('#targetList').innerHTML));
-check('物品选框已初始化', /suggest|chip-btn/.test(documentStub.querySelector('#suggestBox').innerHTML + documentStub.querySelector('#goalBox').innerHTML));
-check('概览卡片已渲染', /card-value/.test(documentStub.querySelector('#summaryGrid').innerHTML));
-check('侧边栏简要统计已渲染', /mini-row/.test(documentStub.querySelector('#summaryMini').innerHTML));
+check('物品选框已初始化', Boolean(documentStub.querySelector('#itemInput')) && Boolean(documentStub.querySelector('#suggestBox')));
+check('常用目标快捷按钮已渲染', /chip-btn/.test(documentStub.querySelector('#goalChips').innerHTML));
+check('目标/统计提示已渲染', /材料|目标/.test(documentStub.querySelector('#goalHint').textContent));
 check('树状图已渲染节点', /node-head/.test(documentStub.querySelector('#treeView').innerHTML));
 check('树节点带物品图标', /item-icon/.test(documentStub.querySelector('#treeView').innerHTML));
 check('配方详情已渲染（网格 + 用途）', /recipe-grid|detail-head/.test(documentStub.querySelector('#recipeHost').innerHTML));
@@ -217,17 +217,26 @@ check('合成工序已渲染', /<table/.test(documentStub.querySelector('#orderV
 check('设置与手工补录在右侧', /base-group/.test(documentStub.querySelector('#baseGroups').innerHTML)
   && Boolean(documentStub.querySelector('.settings-panel')));
 
-// 结构断言：抓 index.html 源确认侧边栏只留两个视图按钮、其余内容都在主区
+// 结构断言：抓 index.html 源确认侧边栏只有两个页签、其余功能都在右侧
 try {
   const html = await (await fetch(`${BASE_URL.origin}${BASE_URL.pathname}`)).text();
-  const sideTabs = (html.match(/class="side-tab(?: active)?"/g) || []).length;
-  check('侧边栏只有 2 个视图按钮（配方书 / 材料统计）', sideTabs === 2, `实际 ${sideTabs} 个`);
   const aside = html.slice(html.indexOf('<aside'), html.indexOf('</aside>'));
-  check('侧边栏里没有配方树/工序/路线/设置',
-    !/data-tab=/.test(aside) && !/settings-panel/.test(aside) && !/id="treeView"/.test(aside) && !/id="orderView"/.test(aside));
-  check('右侧主区包含配方树/清单/工序/路线与设置',
-    /id="treeView"/.test(html) && /id="materialsView"/.test(html) && /id="orderView"/.test(html)
-    && /id="routesView"/.test(html) && /settings-panel/.test(html));
+  const sideTabs = (aside.match(/class="side-tab(?: active)?"/g) || []).length;
+  check('侧边栏只有 2 个页签按钮（配方书 / 材料统计）', sideTabs === 2, `实际 ${sideTabs} 个`);
+  check('侧边栏里没有任何输入框/筛选/分类/结果面板',
+    !/<input|<select|<textarea/.test(aside)
+    && !/id="categoryNav"/.test(aside)
+    && !/id="targetList"/.test(aside)
+    && !/data-tab=/.test(aside)
+    && !/settings-panel/.test(aside));
+
+  const book = html.slice(html.indexOf('data-view-panel="book"'), html.indexOf('data-view-panel="materials"'));
+  check('配方书视图里有选框、分类目录、配方详情',
+    /id="itemInput"/.test(book) && /id="categoryNav"/.test(book) && /id="recipeHost"/.test(book));
+  const materials = html.slice(html.indexOf('data-view-panel="materials"'));
+  check('材料统计视图里有目标清单、粒度选择、结果页签与设置',
+    /id="targetList"/.test(materials) && /id="depthSelect"/.test(materials)
+    && /data-tab="materials"/.test(materials) && /settings-panel/.test(materials));
 } catch (err) {
   check('结构断言（抓 index.html）', false, err.message);
 }

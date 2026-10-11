@@ -596,20 +596,14 @@ function runPlan() {
   setBadge('#routeBadge', (result.variantReport || []).length);
 }
 
-/** 侧边栏里的简要统计 */
+/** 目标清单下方的简要统计 */
 function renderSummaryMini(result) {
-  const host = $('#summaryMini');
-  if (!host) return;
+  const host = $('#goalHint');
+  if (!host || !result) return;
   const summary = result.summary || {};
-  const rows = [
-    ['采集材料种类', `${summary.rawKinds ?? result.raw.length} 种`],
-    ['需要收集总数', `${summary.rawTotal ?? 0} 个`],
-    ['合成步骤', `${summary.craftSteps ?? result.workOrder.length} 步`],
-    ['涉及机器', `${summary.machines ?? 0} 种`],
-  ];
-  host.innerHTML = rows
-    .map(([label, value]) => `<div class="mini-row"><span>${escapeHtml(label)}</span><b>${escapeHtml(String(value))}</b></div>`)
-    .join('');
+  host.hidden = false;
+  host.textContent = `共 ${summary.rawKinds ?? result.raw.length} 种材料、${summary.rawTotal ?? 0} 个要收集`
+    + ` · ${summary.craftSteps ?? result.workOrder.length} 步合成 · 涉及 ${summary.machines ?? 0} 种机器`;
 }
 
 /**
@@ -782,7 +776,8 @@ function bindNavItems(host) {
     add.addEventListener('click', (event) => {
       event.stopPropagation();
       addTarget(add.dataset.navAdd, readQuantity());
-      $('#qtyInput').value = '1';
+      const qty = $('#qtyInput');
+      if (qty) qty.value = '1';
     });
   });
 }
@@ -823,10 +818,23 @@ function suggestItemHtml(hit) {
   </div>`;
 }
 
-/** 物品搜索框：选中一个物品 → 打开它的配方；要加入目标点下面的按钮 */
-function setupItemPicker() {
-  const input = $('#itemInput');
-  const box = $('#suggestBox');
+/**
+ * 物品搜索框。配方书与材料统计各有一个，行为略有区别：
+ *   - 配方书的选框：选中物品 = 打开它的配方，同时过滤分类树
+ *   - 材料统计的选框：选中物品 = 直接加为目标（这里就是来算材料的）
+ */
+function setupOnePicker(config) {
+  const input = $(config.input);
+  const box = $(config.suggest);
+  const qty = $(config.qty);
+  const addBtn = $(config.add);
+  if (!input || !box || !addBtn) return;
+
+  const readQty = () => {
+    const value = Math.floor(Number(qty?.value) || 0);
+    return value > 0 ? value : 1;
+  };
+  const resetQty = () => { if (qty) qty.value = '1'; };
 
   const render = () => {
     const query = input.value.trim();
@@ -843,26 +851,24 @@ function setupItemPicker() {
   const choose = (id) => {
     input.value = '';
     box.hidden = true;
-    openRecipe(id);
+    if (config.mode === 'pick') openRecipe(id);
+    else addTarget(id, readQty());
+    if (config.filtersNav) renderNavTree('');
   };
 
   input.addEventListener('input', () => {
     render();
-    renderNavTree(input.value); // 顺便过滤左侧分类树
+    if (config.filtersNav) renderNavTree(input.value);
   });
   input.addEventListener('focus', render);
   input.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const query = input.value.trim();
-      if (!query) return;
-      // 优先精确命中；否则取搜索首项（仍是"选择"而不是猜测）
-      const exact = state.dataset.has(query) ? query : resolveItemId(query);
-      if (exact) choose(exact);
-      else {
-        showNotice(`没找到「${query}」，换一个名字或从列表里点选。`);
-      }
-    }
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const query = input.value.trim();
+    if (!query) return;
+    const exact = state.dataset.has(query) ? query : resolveItemId(query);
+    if (exact) choose(exact);
+    else showNotice(`没找到「${query}」，换一个名字或从列表里点选。`);
   });
   box.addEventListener('click', (event) => {
     const item = event.target.closest('.suggest-item');
@@ -873,13 +879,13 @@ function setupItemPicker() {
     if (!event.target.closest('.search-wrap')) box.hidden = true;
   });
 
-  $('#addTargetBtn').addEventListener('click', () => {
+  addBtn.addEventListener('click', () => {
     const query = input.value.trim();
+    // 输入框空着时：配方书里把"当前正在看的物品"加为目标，材料统计里提示先选物品
     if (!query) {
-      // 输入框空着时，把当前正在看的物品加为目标
-      if (state.recipeFocus) {
-        addTarget(state.recipeFocus, readQuantity());
-        $('#qtyInput').value = '1';
+      if (config.mode === 'pick' && state.recipeFocus) {
+        addTarget(state.recipeFocus, readQty());
+        resetQty();
         return;
       }
       showNotice('先搜索或从分类里选中一个物品，再点「加为目标」。');
@@ -890,23 +896,28 @@ function setupItemPicker() {
       showNotice(`没找到「${query}」，换一个名字或从下拉列表里点选。`);
       return;
     }
-    addTarget(id, readQuantity());
-    $('#qtyInput').value = '1';
+    addTarget(id, readQty());
+    resetQty();
     input.value = '';
-    renderNavTree();
+    if (config.filtersNav) renderNavTree('');
     hideNotice();
   });
 
-  $('#qtyInput').addEventListener('keydown', (event) => {
+  qty?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      $('#addTargetBtn').click();
+      addBtn.click();
     }
   });
 }
 
+function setupItemPickers() {
+  setupOnePicker({ mode: 'pick', filtersNav: true, input: '#itemInput', suggest: '#suggestBox', qty: '#qtyInput', add: '#addTargetBtn' });
+  setupOnePicker({ mode: 'add', input: '#itemInput2', suggest: '#suggestBox2', qty: '#qtyInput2', add: '#addTargetBtn2' });
+}
+
 function readQuantity() {
-  const value = Math.floor(Number($('#qtyInput').value) || 0);
+  const value = Math.floor(Number($('#qtyInput')?.value ?? $('#qtyInput2')?.value) || 0);
   return value > 0 ? value : 1;
 }
 
@@ -988,26 +999,26 @@ const QUICK_PRESETS = [
   { name: '强化合金锭', count: 16 },
 ];
 
-/** 侧边栏底部的"常用目标"快捷按钮（渲染进目标区） */
+/** "常用目标"快捷按钮：两处选框下面各渲染一份，点了直接加为目标 */
 function setupQuickChips() {
-  const host = $('#goalBox');
-  if (!host) return;
-  const chips = document.createElement('div');
-  chips.className = 'chips compact';
-  chips.innerHTML = QUICK_PRESETS
+  const hosts = ['#goalChips', '#goalChips2'].map((selector) => $(selector)).filter(Boolean);
+  if (hosts.length === 0) return;
+  const html = QUICK_PRESETS
     .map((preset) => `<button class="chip-btn" data-name="${escapeHtml(preset.name)}" data-count="${preset.count}">${escapeHtml(preset.name)} ×${preset.count}</button>`)
     .join('');
-  chips.addEventListener('click', (event) => {
-    const button = event.target.closest('.chip-btn');
-    if (!button) return;
-    const id = resolveItemId(button.dataset.name);
-    if (!id) {
-      showNotice(`数据集里没有「${button.dataset.name}」，可能你的服务器版本或附属不同。`);
-      return;
-    }
-    addTarget(id, Number(button.dataset.count) || 1);
-  });
-  host.insertBefore(chips, host.querySelector('.batch-box') || null);
+  for (const host of hosts) {
+    host.innerHTML = `<span class="chips-label">常用：</span>${html}`;
+    host.addEventListener('click', (event) => {
+      const button = event.target.closest('.chip-btn');
+      if (!button) return;
+      const id = resolveItemId(button.dataset.name);
+      if (!id) {
+        showNotice(`数据集里没有「${button.dataset.name}」，可能你的服务器版本或附属不同。`);
+        return;
+      }
+      addTarget(id, Number(button.dataset.count) || 1);
+    });
+  }
 }
 
 /** 批量文本：解析成清单后仍然走同一套"清单 → 计划"流程 */
@@ -1287,7 +1298,7 @@ function gotoCategory(name) {
     state.sidebarCollapsed = false;
     document.body.classList.remove('sidebar-collapsed');
   }
-  if (!$('#itemInput').value) renderNavTree();
+  if (!$('#itemInput')?.value) renderNavTree();
   document.querySelectorAll('#categoryNav details').forEach((details) => {
     const label = details.querySelector('summary span:nth-child(2)')?.textContent;
     if (label === name) details.open = true;
@@ -1398,7 +1409,7 @@ async function main() {
   setupTabs();
   setupTreeControls();
   setupMaterialsControls();
-  setupItemPicker();
+  setupItemPickers();
   setupBatchInput();
   setupDepth();
   setupSettings();

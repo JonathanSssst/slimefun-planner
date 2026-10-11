@@ -164,57 +164,45 @@ button.primary:hover { filter: brightness(1.06); color: var(--accent-text); }
 }
 .icon-btn:hover { color: var(--accent); }
 
-/* ===================== 指南书式布局：侧边栏 + 主区 ===================== */
+/* ===================== 布局：窄侧边栏（只有页签）+ 主区 ===================== */
 .layout {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 148px minmax(0, 1fr);
   gap: 16px;
-  max-width: 1560px;
+  max-width: 1680px;
   margin: 0 auto;
   padding: 16px 18px 60px;
   align-items: start;
 }
-body.sidebar-collapsed .layout { grid-template-columns: 0 minmax(0, 1fr); }
+body.sidebar-collapsed .layout { grid-template-columns: 0 minmax(0, 1fr); gap: 0; }
 body.sidebar-collapsed .sidebar { display: none; }
 
 .sidebar {
   position: sticky;
   top: 74px;
-  max-height: calc(100vh - 92px);
   display: flex;
   flex-direction: column;
+  gap: 8px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  padding: 10px;
 }
-.sidebar-bottom { border-top: 1px solid var(--line); padding: 10px 12px; flex: 0 0 auto; }
-.sidebar-top { padding: 12px 12px 10px; border-bottom: 1px solid var(--line); }
-.add-row { display: flex; gap: 8px; margin-top: 8px; }
-.add-row input[type=number] { width: 74px; flex: 0 0 auto; }
-.add-row button { flex: 1; }
-
-/* 侧边栏的两个视图切换（配方书 / 材料统计） */
-.side-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
-}
+.side-tabs { display: flex; flex-direction: column; gap: 8px; }
 .side-tab {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 9px 8px;
+  gap: 4px;
+  padding: 14px 6px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 10px;
   background: var(--panel-2);
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
+  position: relative;
 }
 .side-tab:hover { color: var(--accent); border-color: var(--accent); }
 .side-tab.active {
@@ -222,6 +210,48 @@ body.sidebar-collapsed .sidebar { display: none; }
   border-color: var(--accent);
   color: var(--accent);
 }
+.side-tab-icon { font-size: 20px; line-height: 1; }
+.side-tab .badge { position: absolute; top: 6px; right: 8px; }
+
+.content { min-width: 0; }
+.book-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.nav-panel { max-height: calc(100vh - 120px); display: flex; flex-direction: column; overflow: hidden; }
+.nav-panel .tree-nav { flex: 1 1 auto; overflow: auto; max-height: none; padding: 4px 2px 8px; }
+.nav-panel .nav-item { margin-left: 4px; }
+.goal-panel .target-list.wide { max-height: 260px; overflow: auto; }
+.goal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.goal-actions .depth-bar { flex: 1 1 320px; margin: 0; padding: 0; background: none; border: none; }
+.goal-actions .input-actions { margin: 0; }
+.chips-label { color: var(--muted); font-size: 12px; margin-right: 4px; }
+
+@media (max-width: 1080px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { position: static; flex-direction: row; }
+  .side-tabs { flex-direction: row; width: 100%; }
+  .side-tab { flex: 1; flex-direction: row; justify-content: center; padding: 10px; }
+  .book-grid { grid-template-columns: minmax(0, 1fr); }
+  .nav-panel { max-height: 360px; }
+  body.sidebar-collapsed .layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.sidebar-bottom { border-top: 1px solid var(--line); padding: 10px 12px; flex: 0 0 auto; }
+.add-row { display: flex; gap: 8px; margin-top: 8px; }
+.add-row input[type=number] { width: 74px; flex: 0 0 auto; }
+.add-row button { flex: 1; }
+
 .side-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 .side-panel[hidden] { display: none; }
 .controls { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -313,11 +343,8 @@ body.sidebar-collapsed .sidebar { display: none; }
 .nav-item .nav-add:hover { color: var(--accent); border-color: var(--accent); }
 .nav-empty { color: var(--muted); font-size: 12px; padding: 8px; }
 
-/* 侧边栏收起时，让内容整体消失，只保留标题栏 */
-body.sidebar-collapsed .sidebar-top,
-body.sidebar-collapsed .side-tabs,
-body.sidebar-collapsed .tree-nav,
-body.sidebar-collapsed .sidebar-bottom { display: none; }
+/* 侧边栏收起时整体消失（只留顶栏的 ☰ 按钮） */
+body.sidebar-collapsed .sidebar { display: none; }
 
 .sidebar-bottom { border-top: 1px solid var(--line); padding: 10px 12px; flex: 0 0 auto; }
 .goal-box > summary {
