@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: 引擎单元测试
-        run: node --test tests/engine.test.mjs tests/overrides.test.mjs tests/depth.test.mjs tests/recipe-view.test.mjs
+        run: node --test tests/engine.test.mjs tests/overrides.test.mjs tests/depth.test.mjs tests/recipe-view.test.mjs tests/categories.test.mjs
 
       - name: 组装静态站点
         run: |

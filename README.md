@@ -50,21 +50,44 @@
 
 #### 用本机资源包做图标（推荐，一步到位）
 
-粘液科技插件本体**不带贴图**（贴图在服务端资源包里，客户端通过资源包/CustomModelData 呈现），
-所以想拿真实图标，最快的办法是从**你自己已安装的粘液科技材质包**里抽：
+粘液科技插件本体**不带贴图**（贴图在资源包/服务端材质包里），所以想拿真实图标，最快的办法是从
+**你自己已安装的粘液科技材质包**里抽：
 
 ```bat
-node tools\extract-local-icons.mjs
-:: 也会自动在 .minecraft 下找名字含「粘液 / slimefun」的资源包；也可以手动传 zip 路径
+node tools\extract-pack-icons.mjs            :: 主用：以资源包的模型文件为准抽取（推荐）
+node --use-system-ca tools\fetch-head-icons.mjs   :: 可选：给"玩家头颅"类物品补脸部图标
 ```
 
-实测（1.21.11 粘液科技材质包，2687 张 PNG）：**匹配到 532 / 549 个物品 = 96.9%**，
-抽出的 532 张图共约 183 KB，放在 `data/icons/`，浏览器直接加载，完全离线。
-剩下 17 个是只有"盔甲图层纹理"的装备（如达马斯克钢头盔），自动回退到原版镜像。
+实测（1.21.11 粘液科技材质包）：**527 个物品由资源包模型文件确定 + 5 个人工别名 = 532/549 = 96.9%**，
+抽出的图共约 180 KB，放在 `data/icons/`，浏览器直接加载，完全离线。
+每个图标的来源都记录在 `data/icons/icon-provenance.json` 里，可以追溯（`model:…` / `head:…` / `alias:…`）。
 
-匹配规则依次是：文件名 → 相对路径（补 `talisman1/miner` 这类按目录分组的）→
-别名规则（护身符 `XX_TALISMAN → talismanN/xx`、安卓机器人 `PROGRAMMABLE_ANDROID_2_FARMER → androids/android2/farmer` 等）
-→ [data/icon-aliases.json](slimefun-planner/data/icon-aliases.json) 里的特例。
+**为什么以"模型文件"为准**：资源包里每个自定义物品都有一个模型文件，
+`assets/<命名空间>/models/<路径>.json`，它的路径（去掉 `models/`）就是贴图路径
+`assets/<命名空间>/textures/<路径>.png`——这是作者自己的对应关系。
+（模型 json 内部被作者混淆过：键名带零宽字符、内容用 `\uXXXX` 转义，所以只取路径、不解析内部键。）
+旧版脚本纯按物品 ID 猜文件名，会把别的附属插件的同名贴图抓错（例如 `SOLAR_PANEL` 抓到
+`infinityexpansion2` 的贴图），现在改成了模型优先。
+
+**头颅类物品**（导能水晶、碳、护身符…在游戏里是玩家头颅，贴图以皮肤哈希写在插件 `HeadTexture.java` 里）
+可以取皮肤后裁出脸部做图标：
+
+```bat
+node --use-system-ca tools/extract-head-textures.mjs   :: 抽取插件里的皮肤哈希表
+node --use-system-ca tools/fetch-head-icons.mjs        :: 取皮肤 → 裁脸 → 16×16 图标
+```
+
+**验证过的事**（不是猜的）：
+
+- 资源包里有模型文件的 478 个物品，我们抽出的 PNG 与模型推导出的贴图**逐字节一致**（0 处不一致）；
+- 校对工具：`node tools/verify-icon-models.mjs`（模型 vs 抽取结果比对）、
+  `node tools/audit-icons.mjs`（找出跨命名空间/别名等可疑匹配）、
+  `node tools/make-icon-sheet.mjs`（拼成带分类分块的大图，方便人眼核对）。
+
+**仍然缺图标的 17 个**：大马士革钢/强化合金/锁链的盔甲四件套、潜水头盔、防化靴、农夫的靴子、
+不死图腾、合成机智能交互接口。原因：这套材质包**没有**给它们平面贴图（盔甲用的是 OptiFine
+图层纹理 `layer_1.png`，只能给整个模型上色，没法当独立物品图标）。它们会回退到原版图标/首字母徽章，
+你可以在「设置 → 手工补录」里用 `data/icons.json` 的 `overrides` 自己指定。
 
 #### 配方查看
 
@@ -318,24 +341,34 @@ node --use-system-ca tools\set-repo-meta.mjs
 - **配方树**仍在下方：目标 → 采集清单 / 合成工序 / 配方树，与指南书浏览互不干扰。
 - 深链接：`#recipe=simefun4:IRON_DUST` 直接打开某个物品的配方。
 
-### 分类数据怎么来的
+### 分类数据：从插件源码导出（权威）
 
-`data/categories.json` 由 `tools/build-categories.mjs` 生成，两级来源：
+分类**不是猜的**。`data/category-sources.json` 是从 Slimefun4 源码导出的权威映射：
 
-1. **中文 Wiki 分类页/子分类页**（最权威）：抓 19 个分类页 + 16 个子分类页的链接与名字，
-   与数据集物品名匹配 → 266 个物品有 wiki 依据；
-2. **规则推断**：按物品 ID 关键词与配方类型归类（护身符、盔甲、矿粉/锭、机器、食物…）→ 覆盖其余物品。
+- 每个物品的分类来自 `implementation/setup/SlimefunItemSetup.java` 里**真实的 `register(...)` 调用**
+  （分类键取自 `DefaultItemGroups.java`，就是游戏内指南书的分组），**547/549 = 99.6% 有源码依据**；
+- 分类共 24 个，与指南书一致：`resources`（矿物资源）66、`electricity`（能源与电力）77、
+  `misc` 42、`basic_machines` 33、`magical_gadgets` 30、`armor` 28、`technical_gadgets` 28、
+  `magical_armor` 27、`magical_items` 26、`tech_misc` 20、`christmas` 19、`food` 17、`gps` 17、
+  `tools` 16、`items` 16、`talismans` 16、`ender_talismans` 16、`androids` 15、`cargo` 12、
+  `weapons` 10、`valentines_day` 6、`halloween` 6、`easter` 3、`birthday` 1；
+- 未覆盖的 2 个：`HERCULES_PICKAXE`（只在研究成果/ wiki 名称里出现，没有注册调用）、
+  `CRAFTER_SMART_PORT`（整个仓库里都找不到），它们按规则兜底归类。
 
-重新生成：
+生成流程：
 
 ```bat
-node --use-system-ca tools/fetch-wiki-categories.mjs   :: 抓 wiki 分类页（结果放 research/）
-node tools/build-categories.mjs                        :: 合并 wiki + 规则，生成 data/categories.json
+:: 1) 抓中文 wiki 分类页（可选，用于补分类名与来源交叉验证）
+node --use-system-ca tools/fetch-wiki-categories.mjs
+:: 2) 把源码导出的原始表压成入库的精简版 data/category-sources.json
+node tools/pack-category-sources.mjs
+:: 3) 合并生成 data/categories.json
+node tools/build-categories.mjs
 ```
 
-分类名与顺序参考游戏内指南书；wiki 页面上是静态文本（分类没有接口可查），所以这里用的是
-"wiki 链接名匹配 + 关键词规则"，而不是从插件里导出的权威分类。想要 100% 权威映射，
-可以按 `tools/extract-head-textures.mjs` 的思路从插件源码里的 `Category` 注册代码导出（欢迎提交 PR）。
+> 原始导出（含每条证据的源码行号）依赖外部调研产物，不入库；入库的是精简映射表
+> `data/category-sources.json`（37 KB），所以第 3 步在任何环境都能跑。
+> 想自己重新导出，可参考 `research/HeadTexture.java` 与 `tools/extract-head-textures.mjs` 的做法。
 
 ## 已知限制（用之前请知道）
 

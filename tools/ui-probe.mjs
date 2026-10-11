@@ -170,9 +170,18 @@ process.on('unhandledRejection', (err) => errors.push(err));
 process.on('uncaughtException', (err) => errors.push(err));
 
 const { pathToFileURL } = await import('node:url');
+const stages = [];
+const originalLog = console.log;
+console.log = (...args) => { stages.push(args.join(' ')); originalLog(...args); };
 await import(pathToFileURL(new URL('../ui/app.js', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')).href);
 
-await new Promise((resolve) => setTimeout(resolve, 2500));
+// 轮询等待界面渲染完成（外网慢的时候 2.5 秒可能不够）
+const deadline = Date.now() + 20000;
+while (Date.now() < deadline) {
+  if (/配方条目/.test(documentStub.querySelector('#datasetInfo').innerHTML)) break;
+  await new Promise((resolve) => setTimeout(resolve, 300));
+}
+await new Promise((resolve) => setTimeout(resolve, 800));
 
 const expectedTheme = BASE_URL.searchParams.get('theme') || 'light';
 console.log('\n界面自检结果：');
