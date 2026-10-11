@@ -171,23 +171,26 @@ export function variantKeyOf(variant) {
 // ---------------------------------------------------------------- 图标
 
 /**
- * 图标解析（三级优先）：
+ * 图标解析（优先级从高到低）：
  *   1. 用户自备覆盖（data/icons.json 的 overrides）；
- *   2. 粘液科技物品：data/icon-map.json 里的公开镜像地址（按物品 ID 命名，来自官方资源包仓库）；
- *   3. 原版物品：mcmeta 公开镜像里的贴图（item 优先，block 兜底）。
- * 都没有就回退成按名字生成的彩色徽章。仓库不打包任何 Mojang / Slimefun 素材，只存映射。
+ *   2. 本地图标缓存（data/icons/icon-cache.json，从本机资源包抽取，离线可用、最准）；
+ *   3. 粘液科技物品：data/icon-map.json 里的公开镜像地址（按物品 ID 命名）；
+ *   4. 原版物品：mcmeta 公开镜像里的贴图（item 优先，block 兜底）。
+ * 都没有就回退成按名字生成的彩色徽章。仓库不打包任何游戏素材，只存映射与本地抽取结果。
  *
  * @param {string} id
  * @param {object} [options]
  * @param {boolean} [options.enabled=true]
  * @param {object} [options.overrides] 用户覆盖：{ "ITEM_ID": "路径或URL" }
  * @param {object} [options.iconMap] 粘液物品映射：{ "simefun4:IRON_DUST": "https://..." }
+ * @param {object} [options.iconCache] 本地缓存：{ "simefun4:IRON_DUST": "data/icons/xxx.png" }
  * @param {string} [options.cdnBase] 原版贴图镜像前缀
  */
 export function resolveIcon(id, options = {}) {
   const enabled = options.enabled !== false;
   const overrides = options.overrides || {};
   const iconMap = options.iconMap || {};
+  const iconCache = options.iconCache || {};
   const raw = String(id || '');
 
   const custom = overrides[raw];
@@ -197,6 +200,10 @@ export function resolveIcon(id, options = {}) {
 
   if (!enabled) {
     return { url: null, fallbackText: firstChar(raw), tone: toneOf(raw) };
+  }
+
+  if (iconCache[raw]) {
+    return { url: iconCache[raw], fallbackText: firstChar(raw), tone: toneOf(raw), fromLocalCache: true };
   }
 
   if (iconMap[raw]) {

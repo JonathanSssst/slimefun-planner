@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -126,6 +126,37 @@ test('图标：粘液物品优先用 data/icon-map.json 的公开镜像', () => 
     overrides: { 'simefun4:IRON_DUST': 'data/icons/mine.png' },
   });
   assert.equal(overridden.url, 'data/icons/mine.png');
+});
+
+test('图标：本地抽取的缓存优先于在线映射', () => {
+  const iconMap = { 'simefun4:IRON_DUST': 'https://example.com/remote.png' };
+  const iconCache = { 'simefun4:IRON_DUST': 'data/icons/simefun4_IRON_DUST.png' };
+
+  const fromCache = resolveIcon('simefun4:IRON_DUST', { iconMap, iconCache });
+  assert.equal(fromCache.url, 'data/icons/simefun4_IRON_DUST.png', '本地缓存应优先');
+  assert.equal(fromCache.fromLocalCache, true);
+
+  const withoutCache = resolveIcon('simefun4:IRON_DUST', { iconMap, iconCache: {} });
+  assert.equal(withoutCache.url, 'https://example.com/remote.png', '没有缓存时回退在线映射');
+
+  const off = resolveIcon('simefun4:IRON_DUST', { enabled: false, iconMap, iconCache });
+  assert.equal(off.url, null, '关掉图标后两者都不用');
+});
+
+test('图标：本机资源包抽取的缓存（若已生成）能被正确解析', () => {
+  const cachePath = join(here, '../data/icons/icon-cache.json');
+  if (!existsSync(cachePath)) return; // 没跑过抽取脚本就跳过
+  const iconCache = JSON.parse(readFileSync(cachePath, 'utf8'));
+  assert.ok(Object.keys(iconCache).length > 100, `缓存条目过少：${Object.keys(iconCache).length}`);
+  assert.equal(resolveIcon('COAL', { iconCache }).fromLocalCache, undefined, '原版物品不在缓存里');
+  const slime = resolveIcon('simefun4:SYNTHETIC_DIAMOND', { iconCache });
+  assert.equal(slime.fromLocalCache, true, '粘液物品应命中本地缓存');
+  assert.match(slime.url, /^data\/icons\/.+\.png$/);
+  // 缓存里登记的文件必须真实存在
+  const sample = Object.entries(iconCache).slice(0, 20);
+  for (const [id, rel] of sample) {
+    assert.ok(existsSync(join(here, '..', rel)), `${id} 登记的贴图不存在：${rel}`);
+  }
 });
 
 test('图标映射表覆盖了 9 种矿粉与常用中间产物', () => {

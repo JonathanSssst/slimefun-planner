@@ -1,0 +1,39 @@
+{
+  "_说明": "资源包里贴图命名和物品 ID 对不上时用的别名表。key = 物品 ID，value = 候选贴图路径（相对资源包 assets/<namespace>/textures/ 之后，可写多个，取第一个存在的）。这些规则是从 Slimefun 官方资源包/常见整合包命名习惯里总结的，覆盖不了的在界面上显示首字母徽章。",
+  "_例子": {
+    "simefun4:MINER_TALISMAN": "slimefun/talisman1/miner",
+    "simefun4:PROGRAMMABLE_ANDROID": "slimefun/androids/android/normal"
+  },
+  "talisman": {
+    "_规则": "XX_TALISMAN → slimefun/talisman1/xx；ENDER_XX_TALISMAN → slimefun/talisman2/xx；拼写差异：MAGICIAN→magican、LAVA→lava_walker",
+    "_自动处理": true
+  },
+  "android": {
+    "_规则": "PROGRAMMABLE_ANDROID[_2|_3][_工种] → slimefun/androids/android[2|3]/<工种或 normal>",
+    "_自动处理": true
+  },
+  "extra": {
+    "_说明": "少数特例，key 是物品 ID（去掉命名空间并小写），value 是相对路径（可写多个候选，取第一个存在的）",
+    "electric_gold_pan_2": ["slimefun/energy/electric_gold_pan2"],
+    "electric_gold_pan_3": ["slimefun/energy/electric_gold_pan3"],
+    "electric_ingot_factory_2": ["slimefun/energy/electric_ingot_factory2"],
+    "electric_ingot_factory_3": ["slimefun/energy/electric_ingot_factory3"],
+    "electrified_crucible_2": ["slimefun/energy/electrified_crucible2"],
+    "electrified_crucible_3": ["slimefun/energy/electrified_crucible3"],
+    "water_talisman": ["slimefun/talisman1/water_breather"],
+    "ender_water_talisman": ["slimefun/talisman2/water_breather"],
+    "fire_talisman": ["slimefun/talisman1/firefighter"],
+    "ender_fire_talisman": ["slimefun/talisman2/firefighter"],
+    "organic_food_seagrass": ["slimefun/miscellaneous/organic_food/seagrass"],
+    "fertilizer_seagrass": ["slimefun/miscellaneous/organic_fertilizer/seagrass"],
+    "elytra": ["slimefun/magical_gadgets/elytra/infused_elytra", "slimefun/magical_gadgets/elytra/soulbound_elytra"],
+    "trident": ["slimefun/weapons/soulbound_trident_icon", "slimefun/weapons/soulbound_trident"],
+    "totem_of_undying": ["slimefun/magical_gadgets/totem_of_undying"],
+    "gold_pan": ["slimefun/tools/gold_pan"],
+    "nether_gold_pan": ["slimefun/tools/nether_gold_pan"],
+    "scuba_helmet": ["slimefun/magical_armor/scuba_helmet", "slimefun/magical_armor/scuba/scuba_helmet"],
+    "rubber_boots": ["slimefun/magical_armor/rubber_boots", "slimefun/magical_armor/hazmat/rubber_boots"],
+    "farmer_shoes": ["slimefun/magical_armor/farmer_shoes"],
+    "boots_of_the_stomper": ["slimefun/magical_armor/stomper_armor/stomper_boots"]
+  }
+}

@@ -35,21 +35,46 @@
 
 ---
 
-### 物品图标 + 配方查看（新）
+### 物品图标 + 配方查看
 
-- **图标**：每个物品名旁边都会显示图标。原版物品（煤炭、铁锭、燧石…）取自公开镜像
-  [`misode/mcmeta`](https://github.com/misode/mcmeta)；粘液科技物品（铜粉、铁粉、钢锭、压缩碳…）
-  取自官方资源包仓库的贴图映射（`data/icon-map.json`，119 条）。取不到贴图的显示首字母徽章，
-  鼠标悬停/点击仍能看配方。仓库**不打包任何游戏素材**，只存映射地址；
-  「设置 → 显示」里可以一键关掉图标（关掉后不请求任何外部图片）。
-- **配方查看**：新增「配方查看」页签。可以搜索任意物品，也可以直接**点树状图节点 / 采集清单里的材料**
-  打开，看到：
-  - 投料网格（增强型工作台/魔法工作台等按 3×3 摆位显示，冶炼炉/洗矿机等按"投料份数"显示）
-  - 产出数量、所属机器、研究解锁等级
-  - 每种材料的图标与数量（点材料可以继续往下看）
-  - **用途**：哪些物品会用到它（反过来查"这个东西能做啥"）
-  - 多路线提示：数据集只有一条配方时，会提示可以用补录加 `appendVariant` 补充其它途径
-- 深链接：`https://…/slimefun-planner/#recipe=simefun4:IRON_DUST` 可以直接打开某个物品的配方，方便分享。
+- **图标来源（优先级从高到低）**：
+  1. 你自己登记的覆盖（[data/icons.json](slimefun-planner/data/icons.json) 的 `overrides`）；
+  2. **本机资源包抽取的本地缓存**（推荐：最准、离线可用。见下面「用本机资源包做图标」）；
+  3. 粘液科技物品的公开镜像映射（[data/icon-map.json](slimefun-planner/data/icon-map.json)，119 条）；
+  4. 原版物品的公开镜像 [`misode/mcmeta`](https://github.com/misode/mcmeta)（item 优先，block 兜底）；
+  5. 都没有时显示按 ID 生成的彩色首字母徽章。
+- 仓库**不打包任何游戏素材**：只存"物品 ID → 地址"的映射；本地抽取出来的 PNG 在 `.gitignore` 里，不会提交。
+- 「设置 → 显示」里可以一键关掉图标（关掉后不请求任何外部图片）。
+
+#### 用本机资源包做图标（推荐，一步到位）
+
+粘液科技插件本体**不带贴图**（贴图在服务端资源包里，客户端通过资源包/CustomModelData 呈现），
+所以想拿真实图标，最快的办法是从**你自己已安装的粘液科技材质包**里抽：
+
+```bat
+node tools\extract-local-icons.mjs
+:: 也会自动在 .minecraft 下找名字含「粘液 / slimefun」的资源包；也可以手动传 zip 路径
+```
+
+实测（1.21.11 粘液科技材质包，2687 张 PNG）：**匹配到 532 / 549 个物品 = 96.9%**，
+抽出的 532 张图共约 183 KB，放在 `data/icons/`，浏览器直接加载，完全离线。
+剩下 17 个是只有"盔甲图层纹理"的装备（如达马斯克钢头盔），自动回退到原版镜像。
+
+匹配规则依次是：文件名 → 相对路径（补 `talisman1/miner` 这类按目录分组的）→
+别名规则（护身符 `XX_TALISMAN → talismanN/xx`、安卓机器人 `PROGRAMMABLE_ANDROID_2_FARMER → androids/android2/farmer` 等）
+→ [data/icon-aliases.json](slimefun-planner/data/icon-aliases.json) 里的特例。
+
+#### 配方查看
+
+新增「配方查看」页签。可以搜索任意物品，也可以直接**点树状图节点 / 采集清单里的材料**打开，看到：
+
+- 投料网格（增强型工作台/魔法工作台等按 3×3 摆位显示；冶炼炉/洗矿机等按"投料份数"显示）
+- 产出数量、所属机器、研究解锁等级
+- 每种材料的图标与数量（点材料可以继续往下看）
+- **用途**：哪些物品会用到它（反过来查"这东西能做啥"）
+- 多路线提示：数据集只有一条配方时，会提示可以用补录加 `appendVariant` 补充其它途径
+
+深链接：`…/slimefun-planner/#recipe=simefun4:IRON_DUST` 可直接打开某个物品的配方，方便分享。
 
 ![配方查看](docs/screenshot-recipe.png)
 
@@ -286,8 +311,20 @@ node tools/ui-probe.mjs http://127.0.0.1:8791                 :: 界面自检（
 node tools/ui-probe.mjs "http://127.0.0.1:8791/?theme=dark"   :: 顺带验证深色主题
 node tools/ui-probe.mjs https://jonathansssst.github.io/slimefun-planner/   :: 线上站点自检
 python tools/analyze_dataset.py data/recipes.core.jsonl       :: 数据集体检
-node --use-system-ca tools/build-icon-map.mjs                 :: 重新生成粘液物品图标映射
+node tools/extract-local-icons.mjs                            :: 从本机材质包抽图标（推荐）
+node --use-system-ca tools/build-icon-map.mjs                 :: 重新生成在线图标映射
+node --use-system-ca tools/download-icons.mjs                 :: 没装材质包时的备选：从公开镜像下载
 ```
+
+图标相关的其它工具：
+`tools/extract-head-textures.mjs`（抽取插件里的 HeadTexture 皮肤哈希，用于核对覆盖率）、
+`tools/suggest-icon-aliases.mjs`（分析资源包里命名对不上的贴图，给别名表提建议）。
+
+> 顺便说一句：Slimefun 插件 jar 里**没有贴图**（我下载了汉化版 2026.1 构建 6.8MB 核对过，
+> 里面只有代码和语言文件，`HeadTexture.java` 里存的是皮肤哈希）；贴图在资源包里。
+> 皮肤服务（mc-heads / Crafatar / mineatar）都不接受"原始贴图哈希"，所以头颅类物品的图标
+> 走的是本机资源包抽取或原版镜像兜底。
+
 
 单元测试覆盖：按格计数、一次产出多件向上取整、共享中间产物合并、基础材料截断展开、
 库存抵扣采购清单、循环依赖检出、多路线择优、采集型条目不展开、无配方数据标记，

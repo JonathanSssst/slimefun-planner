@@ -13,3 +13,7 @@ desktop.ini
 research/
 _site/
 *.bak
+
+# 从本机资源包抽取的图标素材（版权归原作者，不入库；用 tools/extract-local-icons.mjs 生成）
+data/icons/*.png
+data/icons/icon-cache.json

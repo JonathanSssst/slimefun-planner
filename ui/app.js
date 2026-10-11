@@ -13,6 +13,8 @@ const BUILTIN_OVERRIDES_FILE = 'data/overrides.json';
 const ICONS_FILE = 'data/icons.json';
 /** 粘液科技物品图标映射（由 tools/build-icon-map.mjs 生成，只存映射不存素材） */
 const ICON_MAP_FILE = 'data/icon-map.json';
+/** 本地图标缓存索引（由 tools/extract-local-icons.mjs 从本机资源包抽取，素材不入库） */
+const ICON_CACHE_FILE = 'data/icons/icon-cache.json';
 
 const STORAGE_KEY = 'slimefun-planner-settings-v1';
 const LOCAL_OVERRIDES_KEY = 'slimefun-planner-overrides-v1';
@@ -36,6 +38,7 @@ const state = {
   iconsEnabled: true,
   iconOverrides: {},
   iconMap: {},
+  iconCache: {},
   /** 用途索引（材料 -> 哪些物品会用到它） */
   usageIndex: null,
   /** 配方查看页当前选中的物品 */
@@ -120,6 +123,13 @@ async function readIconConfig() {
   } catch (err) {
     console.warn('[icons] 映射表读取失败，粘液物品将显示首字母徽章', err.message);
     state.iconMap = {};
+  }
+  try {
+    const cache = JSON.parse((await fetchText(ICON_CACHE_FILE)).replace(/^\uFEFF/, ''));
+    state.iconCache = cache && typeof cache === 'object' ? cache : {};
+  } catch (err) {
+    // 没跑过抽取脚本时属于正常情况，静默走在线映射
+    state.iconCache = {};
   }
 }
 
@@ -932,6 +942,7 @@ function iconHtml(id, size = 20) {
     enabled: state.iconsEnabled,
     overrides: state.iconOverrides,
     iconMap: state.iconMap,
+    iconCache: state.iconCache,
   });
   const badge = `<span class="icon-badge tone-${icon.tone}">${escapeHtml(icon.fallbackText)}</span>`;
   if (!icon.url) return `<span class="item-icon" style="--icon-size:${size}px">${badge}</span>`;
