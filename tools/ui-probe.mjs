@@ -104,6 +104,7 @@ function matches(element, selector) {
 }
 
 const registry = new Map();
+const listRegistry = new Map();
 const documentStub = {
   createElement: (tag) => new FakeElement(tag),
   documentElement: new FakeElement('html'),
@@ -115,7 +116,17 @@ const documentStub = {
     }
     return registry.get(selector);
   },
-  querySelectorAll: () => [],
+  // 桩里按选择器返回一个占位元素：数量断言交给"抓 HTML 源"来做
+  querySelectorAll: (selector) => {
+    if (!listRegistry.has(selector)) {
+      const element = new FakeElement('div');
+      element.dataset = selector.includes('data-view=book') ? { view: 'book' }
+        : selector.includes('data-view=materials') ? { view: 'materials' }
+          : selector.includes('side-panel') ? { sidePanel: 'book' } : {};
+      listRegistry.set(selector, [element]);
+    }
+    return listRegistry.get(selector);
+  },
   addEventListener: () => {},
   body: new FakeElement('body'),
 };
@@ -197,12 +208,29 @@ check('侧边栏分类树已渲染', /nav-group|nav-item/.test(documentStub.quer
 check('目标清单已渲染（选框添加）', /target-row/.test(documentStub.querySelector('#targetList').innerHTML));
 check('物品选框已初始化', /suggest|chip-btn/.test(documentStub.querySelector('#suggestBox').innerHTML + documentStub.querySelector('#goalBox').innerHTML));
 check('概览卡片已渲染', /card-value/.test(documentStub.querySelector('#summaryGrid').innerHTML));
+check('侧边栏简要统计已渲染', /mini-row/.test(documentStub.querySelector('#summaryMini').innerHTML));
 check('树状图已渲染节点', /node-head/.test(documentStub.querySelector('#treeView').innerHTML));
 check('树节点带物品图标', /item-icon/.test(documentStub.querySelector('#treeView').innerHTML));
 check('配方详情已渲染（网格 + 用途）', /recipe-grid|detail-head/.test(documentStub.querySelector('#recipeHost').innerHTML));
 check('采集清单已渲染', /<table|不需要额外采集/.test(documentStub.querySelector('#materialsView').innerHTML));
 check('合成工序已渲染', /<table/.test(documentStub.querySelector('#orderView').innerHTML));
-check('设置页基础材料已渲染', /base-group/.test(documentStub.querySelector('#baseGroups').innerHTML));
+check('设置与手工补录在右侧', /base-group/.test(documentStub.querySelector('#baseGroups').innerHTML)
+  && Boolean(documentStub.querySelector('.settings-panel')));
+
+// 结构断言：抓 index.html 源确认侧边栏只留两个视图按钮、其余内容都在主区
+try {
+  const html = await (await fetch(`${BASE_URL.origin}${BASE_URL.pathname}`)).text();
+  const sideTabs = (html.match(/class="side-tab(?: active)?"/g) || []).length;
+  check('侧边栏只有 2 个视图按钮（配方书 / 材料统计）', sideTabs === 2, `实际 ${sideTabs} 个`);
+  const aside = html.slice(html.indexOf('<aside'), html.indexOf('</aside>'));
+  check('侧边栏里没有配方树/工序/路线/设置',
+    !/data-tab=/.test(aside) && !/settings-panel/.test(aside) && !/id="treeView"/.test(aside) && !/id="orderView"/.test(aside));
+  check('右侧主区包含配方树/清单/工序/路线与设置',
+    /id="treeView"/.test(html) && /id="materialsView"/.test(html) && /id="orderView"/.test(html)
+    && /id="routesView"/.test(html) && /settings-panel/.test(html));
+} catch (err) {
+  check('结构断言（抓 index.html）', false, err.message);
+}
 
 const treeHtml = documentStub.querySelector('#treeView').innerHTML;
 console.log('\n树状图首节点预览：');

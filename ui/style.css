@@ -189,15 +189,71 @@ body.sidebar-collapsed .sidebar { display: none; }
   box-shadow: var(--shadow);
   overflow: hidden;
 }
+.sidebar-bottom { border-top: 1px solid var(--line); padding: 10px 12px; flex: 0 0 auto; }
 .sidebar-top { padding: 12px 12px 10px; border-bottom: 1px solid var(--line); }
 .add-row { display: flex; gap: 8px; margin-top: 8px; }
 .add-row input[type=number] { width: 74px; flex: 0 0 auto; }
 .add-row button { flex: 1; }
 
+/* 侧边栏的两个视图切换（配方书 / 材料统计） */
+.side-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.side-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.side-tab:hover { color: var(--accent); border-color: var(--accent); }
+.side-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.side-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.side-panel[hidden] { display: none; }
+.controls { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.goal-box.compact { padding: 10px 12px 6px; border-bottom: 1px solid var(--line); }
+.goal-box.compact .goal-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.summary-mini { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.summary-mini .mini-row { display: flex; justify-content: space-between; gap: 8px; }
+.summary-mini .mini-row b { font-variant-numeric: tabular-nums; }
+
+.settings-panel > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  list-style: none;
+}
+.settings-panel > summary::-webkit-details-marker { display: none; }
+.settings-panel > summary::before { content: '▸ '; color: var(--muted); }
+.settings-panel[open] > summary::before { content: '▾ '; }
+.settings-body { margin-top: 12px; }
+.settings-body h3 { margin-top: 16px; }
+
 .tree-nav {
   flex: 1 1 auto;
   min-height: 140px;
-  max-height: 52vh;
   overflow: auto;
   padding: 8px 6px 12px;
 }
@@ -257,12 +313,13 @@ body.sidebar-collapsed .sidebar { display: none; }
 .nav-item .nav-add:hover { color: var(--accent); border-color: var(--accent); }
 .nav-empty { color: var(--muted); font-size: 12px; padding: 8px; }
 
-/* 侧边栏收起时，让分类树整体消失，只保留标题栏 */
+/* 侧边栏收起时，让内容整体消失，只保留标题栏 */
 body.sidebar-collapsed .sidebar-top,
+body.sidebar-collapsed .side-tabs,
 body.sidebar-collapsed .tree-nav,
 body.sidebar-collapsed .sidebar-bottom { display: none; }
 
-.sidebar-bottom { border-top: 1px solid var(--line); padding: 10px 12px; flex: 0 0 auto; max-height: 44vh; overflow: auto; }
+.sidebar-bottom { border-top: 1px solid var(--line); padding: 10px 12px; flex: 0 0 auto; }
 .goal-box > summary {
   display: flex;
   align-items: center;

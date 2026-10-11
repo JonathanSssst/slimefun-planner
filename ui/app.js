@@ -49,6 +49,8 @@ const state = {
   history: [],
   /** 指南书分类目录 */
   categories: null,
+  /** 侧边栏当前视图：book（配方书）/ materials（材料统计） */
+  view: 'book',
   /** 侧边栏是否收起 */
   sidebarCollapsed: false,
 };
@@ -202,6 +204,7 @@ function loadSettings() {
     if (typeof saved.materialDepth === 'string') state.materialDepth = saved.materialDepth;
     if (typeof saved.iconsEnabled === 'boolean') state.iconsEnabled = saved.iconsEnabled;
     if (typeof saved.sidebarCollapsed === 'boolean') state.sidebarCollapsed = saved.sidebarCollapsed;
+    if (saved.view === 'book' || saved.view === 'materials') state.view = saved.view;
   } catch (err) {
     console.warn('[settings] 读取失败', err);
   }
@@ -219,6 +222,7 @@ function saveSettings() {
       materialDepth: state.materialDepth,
       iconsEnabled: state.iconsEnabled,
       sidebarCollapsed: state.sidebarCollapsed,
+      view: state.view,
     }));
   } catch (err) {
     console.warn('[settings] 保存失败', err);
@@ -575,18 +579,62 @@ function runPlan() {
   const result = compute();
   state.result = result;
   $('#resultPanel').hidden = false;
+  $('#emptyResultPanel').hidden = true;
 
   // 采集清单里当前选中的物品如果还在，刷新它的详情（数量可能变了）
   if (state.recipeFocus) describeAndRender(state.recipeFocus);
 
   renderSummary(result);
+  renderSummaryMini(result);
   renderTree(result);
   renderMaterials(result);
   renderOrder(result);
   renderRoutes(result);
   setBadge('#materialBadge', result.raw.length);
+  setBadge('#tabMaterialBadge', result.raw.length);
   setBadge('#orderBadge', result.workOrder.length);
   setBadge('#routeBadge', (result.variantReport || []).length);
+}
+
+/** 侧边栏里的简要统计 */
+function renderSummaryMini(result) {
+  const host = $('#summaryMini');
+  if (!host) return;
+  const summary = result.summary || {};
+  const rows = [
+    ['采集材料种类', `${summary.rawKinds ?? result.raw.length} 种`],
+    ['需要收集总数', `${summary.rawTotal ?? 0} 个`],
+    ['合成步骤', `${summary.craftSteps ?? result.workOrder.length} 步`],
+    ['涉及机器', `${summary.machines ?? 0} 种`],
+  ];
+  host.innerHTML = rows
+    .map(([label, value]) => `<div class="mini-row"><span>${escapeHtml(label)}</span><b>${escapeHtml(String(value))}</b></div>`)
+    .join('');
+}
+
+/**
+ * 侧边栏的两个视图：配方书 / 材料统计。
+ * 切换时左侧换面板，右侧跟着换内容（配方详情 ↔ 材料清单）。
+ */
+function setupViewTabs() {
+  const switchView = (view) => {
+    state.view = view;
+    document.querySelectorAll('.side-tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.view === view));
+    document.querySelectorAll('[data-side-panel]').forEach((panel) => { panel.hidden = panel.dataset.sidePanel !== view; });
+    document.querySelectorAll('[data-view-panel]').forEach((panel) => { panel.hidden = panel.dataset.viewPanel !== view; });
+    if (view === 'materials') {
+      const hasResult = Boolean(state.result);
+      $('#resultPanel').hidden = !hasResult;
+      $('#summaryPanel').hidden = !hasResult;
+      $('#emptyResultPanel').hidden = hasResult;
+    }
+    saveSettings();
+  };
+  document.querySelectorAll('.side-tab').forEach((tab) => {
+    tab.addEventListener('click', () => switchView(tab.dataset.view));
+  });
+  state.switchView = switchView;
+  switchView(state.view || 'book');
 }
 
 function setupTabs() {
@@ -742,11 +790,9 @@ function bindNavItems(host) {
 function highlightNavItem() {
   document.querySelectorAll('#categoryNav .nav-item.active').forEach((el) => el.classList.remove('active'));
   if (!state.recipeFocus) return;
-  // CSS.escape 在个别环境里不存在，给个兜底
-  const escaped = typeof CSS !== 'undefined' && CSS.escape
-    ? CSS.escape(state.recipeFocus)
-    : state.recipeFocus.replace(/"/g, '\\"');
-  const match = document.querySelector(`#categoryNav [data-nav-item="${escaped}"]`);
+  // 用 data 属性选择器，避免依赖 CSS.escape（个别环境没有）
+  const match = [...document.querySelectorAll('#categoryNav .nav-item')]
+    .find((el) => el.dataset.navItem === state.recipeFocus);
   if (match) {
     match.classList.add('active');
     let parent = match.closest('details');
@@ -894,8 +940,13 @@ function renderTargetList() {
   const container = $('#targetList');
   if (!container) return;
   setBadge('#goalBadge', state.targetList.length);
+  const hint = $('#goalHint');
+  if (hint) {
+    hint.hidden = state.targetList.length > 0;
+    hint.textContent = '还没有目标：在上面搜索或从分类里点物品，用「加为目标」加入。';
+  }
   if (state.targetList.length === 0) {
-    container.innerHTML = '<div class="target-empty">还没有目标。用上面的搜索框或左侧分类找到物品，点「加为目标」。</div>';
+    container.innerHTML = '<div class="target-empty">还没有目标。用上面的搜索框或分类树找到物品，点「加为目标」。</div>';
     return;
   }
   container.innerHTML = state.targetList.map((item) => `
@@ -1246,6 +1297,8 @@ function gotoCategory(name) {
 /** 打开配方详情：带浏览历史，方便在配方之间来回跳 */
 function openRecipe(id, options = {}) {
   if (!state.dataset?.has(id)) return;
+  // 点配方 → 自动回到「配方书」视图
+  if (state.view !== 'book' && state.switchView) state.switchView('book');
   if (state.recipeFocus && state.recipeFocus !== id && options.pushHistory !== false) {
     state.history.push(state.recipeFocus);
     if (state.history.length > 60) state.history.shift();
@@ -1269,6 +1322,16 @@ function recipeFromHash() {
     const hash = decodeURIComponent(location.hash || '');
     const match = hash.match(/recipe=(.+)$/);
     return match ? match[1] : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+/** 支持 ?view=materials 直接打开材料统计视图（方便分享链接） */
+function viewFromUrl() {
+  try {
+    const view = new URLSearchParams(location.search || '').get('view');
+    return view === 'materials' || view === 'book' ? view : null;
   } catch (err) {
     return null;
   }
@@ -1328,6 +1391,9 @@ async function main() {
   renderTargetList();
   renderNavTree();
   setupSidebar();
+  const urlView = viewFromUrl();
+  if (urlView) state.view = urlView;
+  setupViewTabs();
   setupTheme();
   setupTabs();
   setupTreeControls();
