@@ -64,7 +64,24 @@ class FakeElement {
     }
   }
   closest() { return null; }
-  appendChild(child) { this.children.push(child); return child; }
+  appendChild(child) {
+    this.children.push(child);
+    // 桩里动态插入的节点也反映到 innerHTML，方便断言查询
+    this._html += child._html || (child.tagName ? `<${child.tagName.toLowerCase()}></${child.tagName.toLowerCase()}>` : '');
+    return child;
+  }
+  insertBefore(child, reference) {
+    const index = reference ? this.children.indexOf(reference) : -1;
+    if (index >= 0) this.children.splice(index, 0, child);
+    else this.children.push(child);
+    this._html += child._html || (child.tagName ? `<${child.tagName.toLowerCase()}></${child.tagName.toLowerCase()}>` : '');
+    return child;
+  }
+  removeChild(child) {
+    const index = this.children.indexOf(child);
+    if (index >= 0) this.children.splice(index, 1);
+    return child;
+  }
   click() { this.dispatch('click'); }
   setAttribute(name, value) { this.attributes[name] = value; }
   getBoundingClientRect() { return { top: 0, left: 0, width: 100, height: 20 }; }
@@ -167,8 +184,9 @@ check('主题按钮标签正确',
   documentStub.querySelector('#themeLabel').textContent === (expectedTheme === 'dark' ? '深色' : '浅色'),
   `实际=${documentStub.querySelector('#themeLabel').textContent}`);
 check('数据集信息已渲染', /配方条目/.test(documentStub.querySelector('#datasetInfo').innerHTML));
+check('侧边栏分类树已渲染', /nav-group|nav-item/.test(documentStub.querySelector('#categoryNav').innerHTML));
 check('目标清单已渲染（选框添加）', /target-row/.test(documentStub.querySelector('#targetList').innerHTML));
-check('物品选框已初始化', /suggest|chip-btn/.test(documentStub.querySelector('#quickChips').innerHTML));
+check('物品选框已初始化', /suggest|chip-btn/.test(documentStub.querySelector('#suggestBox').innerHTML + documentStub.querySelector('#goalBox').innerHTML));
 check('概览卡片已渲染', /card-value/.test(documentStub.querySelector('#summaryGrid').innerHTML));
 check('树状图已渲染节点', /node-head/.test(documentStub.querySelector('#treeView').innerHTML));
 check('树节点带物品图标', /item-icon/.test(documentStub.querySelector('#treeView').innerHTML));

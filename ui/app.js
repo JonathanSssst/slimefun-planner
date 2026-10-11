@@ -15,6 +15,8 @@ const ICONS_FILE = 'data/icons.json';
 const ICON_MAP_FILE = 'data/icon-map.json';
 /** 本地图标缓存索引（由 tools/extract-local-icons.mjs 从本机资源包抽取，素材不入库） */
 const ICON_CACHE_FILE = 'data/icons/icon-cache.json';
+/** 指南书式分类目录（由 tools/build-categories.mjs 生成） */
+const CATEGORIES_FILE = 'data/categories.json';
 
 const STORAGE_KEY = 'slimefun-planner-settings-v1';
 const LOCAL_OVERRIDES_KEY = 'slimefun-planner-overrides-v1';
@@ -43,6 +45,12 @@ const state = {
   usageIndex: null,
   /** 配方查看页当前选中的物品 */
   recipeFocus: null,
+  /** 浏览历史（用于返回上一个物品） */
+  history: [],
+  /** 指南书分类目录 */
+  categories: null,
+  /** 侧边栏是否收起 */
+  sidebarCollapsed: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -133,6 +141,28 @@ async function readIconConfig() {
   }
 }
 
+/** 读取指南书分类目录（data/categories.json）；没有也能用，只是侧边栏退化成平铺列表 */
+async function readCategories() {
+  try {
+    const data = JSON.parse((await fetchText(CATEGORIES_FILE)).replace(/^\uFEFF/, ''));
+    state.categories = Array.isArray(data?.groups) ? data : null;
+  } catch (err) {
+    state.categories = null;
+  }
+}
+
+/** 物品 → 分类路径，例如 ['资源', '矿粉'] */
+function categoryPathOf(id) {
+  if (!state.categories) return null;
+  for (const group of state.categories.groups) {
+    if ((group.items || []).includes(id)) return [group.name];
+    for (const sub of group.subgroups || []) {
+      if ((sub.items || []).includes(id)) return [group.name, sub.name];
+    }
+  }
+  return null;
+}
+
 /** 仓库自带的公共补录（版主维护，所有人共享） */
 async function readBuiltinOverrides() {
   try {
@@ -171,6 +201,7 @@ function loadSettings() {
     if (saved.theme === 'dark' || saved.theme === 'light') state.theme = saved.theme;
     if (typeof saved.materialDepth === 'string') state.materialDepth = saved.materialDepth;
     if (typeof saved.iconsEnabled === 'boolean') state.iconsEnabled = saved.iconsEnabled;
+    if (typeof saved.sidebarCollapsed === 'boolean') state.sidebarCollapsed = saved.sidebarCollapsed;
   } catch (err) {
     console.warn('[settings] 读取失败', err);
   }
@@ -187,6 +218,7 @@ function saveSettings() {
       theme: state.theme,
       materialDepth: state.materialDepth,
       iconsEnabled: state.iconsEnabled,
+      sidebarCollapsed: state.sidebarCollapsed,
     }));
   } catch (err) {
     console.warn('[settings] 保存失败', err);
@@ -527,6 +559,7 @@ function renderSources(addonCount) {
 
 function setBadge(id, value) {
   const badge = $(id);
+  if (!badge) return;
   badge.textContent = value;
   badge.classList.toggle('zero', !value);
 }
@@ -636,6 +669,104 @@ function setupMaterialsControls() {
   });
 }
 
+// ---------------------------------------------------------------- 侧边栏导航
+
+/** 侧边栏：指南书式分类树（分类 → 子分类 → 物品），带搜索过滤 */
+function renderNavTree(filter = '') {
+  const host = $('#categoryNav');
+  if (!host) return;
+  const query = filter.trim().toLowerCase();
+
+  // 搜索态：直接给命中的物品列表
+  if (query) {
+    const hits = state.dataset.search(query, 60);
+    host.innerHTML = hits.length === 0
+      ? '<p class="nav-empty">没有匹配的物品</p>'
+      : `<div class="nav-group" open><summary style="pointer-events:none">搜索结果 <span class="nav-count">${hits.length}</span></summary>${
+        hits.map((hit) => navItemHtml(hit.id)).join('')}</div>`;
+    bindNavItems(host);
+    return;
+  }
+
+  if (!state.categories) {
+    // 没有分类数据时退化成"按首字分组"的平铺列表
+    const all = [...state.dataset.variantsById.keys()].map((id) => ({ id, name: state.dataset.name(id) }));
+    host.innerHTML = `<div class="nav-group" open><summary>全部物品 <span class="nav-count">${all.length}</span></summary>${
+      all.map((item) => navItemHtml(item.id)).join('')}</div>`;
+    bindNavItems(host);
+    return;
+  }
+
+  host.innerHTML = state.categories.groups.map((group) => {
+    const items = (group.items || []).map((id) => navItemHtml(id)).join('');
+    const subs = (group.subgroups || []).map((sub) => `<details class="nav-sub">
+      <summary><span class="nav-caret">▶</span><span>${escapeHtml(sub.name)}</span><span class="nav-count">${(sub.items || []).length}</span></summary>
+      ${(sub.items || []).map((id) => navItemHtml(id)).join('')}
+    </details>`).join('');
+    const count = (group.items || []).length + (group.subgroups || []).reduce((sum, sub) => sum + (sub.items || []).length, 0);
+    return `<details class="nav-group">
+      <summary><span class="nav-caret">▶</span><span>${escapeHtml(group.name)}</span><span class="nav-count">${count}</span></summary>
+      ${items}${subs}
+    </details>`;
+  }).join('') || '<p class="nav-empty">分类数据为空</p>';
+
+  bindNavItems(host);
+  highlightNavItem();
+}
+
+function navItemHtml(id) {
+  const active = state.recipeFocus === id ? ' active' : '';
+  return `<button class="nav-item${active}" data-nav-item="${escapeHtml(id)}" title="${escapeHtml(id)}">
+    ${iconHtml(id, 18)}
+    <span class="nav-name">${escapeHtml(state.dataset.name(id))}</span>
+    <span class="nav-actions"><span class="nav-add" data-nav-add="${escapeHtml(id)}" title="加为目标">+</span></span>
+  </button>`;
+}
+
+function bindNavItems(host) {
+  host.querySelectorAll('[data-nav-item]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      if (event.target.closest('[data-nav-add]')) return; // 加为目标由下面处理
+      openRecipe(button.dataset.navItem);
+    });
+  });
+  host.querySelectorAll('[data-nav-add]').forEach((add) => {
+    add.addEventListener('click', (event) => {
+      event.stopPropagation();
+      addTarget(add.dataset.navAdd, readQuantity());
+      $('#qtyInput').value = '1';
+    });
+  });
+}
+
+function highlightNavItem() {
+  document.querySelectorAll('#categoryNav .nav-item.active').forEach((el) => el.classList.remove('active'));
+  if (!state.recipeFocus) return;
+  // CSS.escape 在个别环境里不存在，给个兜底
+  const escaped = typeof CSS !== 'undefined' && CSS.escape
+    ? CSS.escape(state.recipeFocus)
+    : state.recipeFocus.replace(/"/g, '\\"');
+  const match = document.querySelector(`#categoryNav [data-nav-item="${escaped}"]`);
+  if (match) {
+    match.classList.add('active');
+    let parent = match.closest('details');
+    while (parent) {
+      parent.open = true;
+      parent = parent.parentElement?.closest('details');
+    }
+  }
+}
+
+function setupSidebar() {
+  if (state.sidebarCollapsed) document.body.classList.add('sidebar-collapsed');
+  $('#sidebarToggle').addEventListener('click', () => {
+    state.sidebarCollapsed = !state.sidebarCollapsed;
+    document.body.classList.toggle('sidebar-collapsed', state.sidebarCollapsed);
+    saveSettings();
+  });
+  $('#backBtn').addEventListener('click', goBackRecipe);
+}
+
 // ---------------------------------------------------------------- 物品选框
 
 function suggestItemHtml(hit) {
@@ -646,7 +777,7 @@ function suggestItemHtml(hit) {
   </div>`;
 }
 
-/** 物品搜索框：只负责"选中一个物品"，不做自由文本解析，避免抓错物品 */
+/** 物品搜索框：选中一个物品 → 打开它的配方；要加入目标点下面的按钮 */
 function setupItemPicker() {
   const input = $('#itemInput');
   const box = $('#suggestBox');
@@ -664,13 +795,15 @@ function setupItemPicker() {
   };
 
   const choose = (id) => {
-    addTarget(id, readQuantity());
     input.value = '';
     box.hidden = true;
-    $('#qtyInput').value = '1';
+    openRecipe(id);
   };
 
-  input.addEventListener('input', render);
+  input.addEventListener('input', () => {
+    render();
+    renderNavTree(input.value); // 顺便过滤左侧分类树
+  });
   input.addEventListener('focus', render);
   input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -697,7 +830,13 @@ function setupItemPicker() {
   $('#addTargetBtn').addEventListener('click', () => {
     const query = input.value.trim();
     if (!query) {
-      showNotice('先在上面选中一个物品，再点「添加」。');
+      // 输入框空着时，把当前正在看的物品加为目标
+      if (state.recipeFocus) {
+        addTarget(state.recipeFocus, readQuantity());
+        $('#qtyInput').value = '1';
+        return;
+      }
+      showNotice('先搜索或从分类里选中一个物品，再点「加为目标」。');
       return;
     }
     const id = state.dataset.has(query) ? query : resolveItemId(query);
@@ -705,7 +844,11 @@ function setupItemPicker() {
       showNotice(`没找到「${query}」，换一个名字或从下拉列表里点选。`);
       return;
     }
-    choose(id);
+    addTarget(id, readQuantity());
+    $('#qtyInput').value = '1';
+    input.value = '';
+    renderNavTree();
+    hideNotice();
   });
 
   $('#qtyInput').addEventListener('keydown', (event) => {
@@ -749,8 +892,10 @@ function setTargetCount(id, count) {
 
 function renderTargetList() {
   const container = $('#targetList');
+  if (!container) return;
+  setBadge('#goalBadge', state.targetList.length);
   if (state.targetList.length === 0) {
-    container.innerHTML = '<div class="target-empty">还没有添加目标。上面挑一个物品、填好数量，点「添加」。</div>';
+    container.innerHTML = '<div class="target-empty">还没有目标。用上面的搜索框或左侧分类找到物品，点「加为目标」。</div>';
     return;
   }
   container.innerHTML = state.targetList.map((item) => `
@@ -792,11 +937,16 @@ const QUICK_PRESETS = [
   { name: '强化合金锭', count: 16 },
 ];
 
+/** 侧边栏底部的"常用目标"快捷按钮（渲染进目标区） */
 function setupQuickChips() {
-  $('#quickChips').innerHTML = QUICK_PRESETS
+  const host = $('#goalBox');
+  if (!host) return;
+  const chips = document.createElement('div');
+  chips.className = 'chips compact';
+  chips.innerHTML = QUICK_PRESETS
     .map((preset) => `<button class="chip-btn" data-name="${escapeHtml(preset.name)}" data-count="${preset.count}">${escapeHtml(preset.name)} ×${preset.count}</button>`)
     .join('');
-  $('#quickChips').addEventListener('click', (event) => {
+  chips.addEventListener('click', (event) => {
     const button = event.target.closest('.chip-btn');
     if (!button) return;
     const id = resolveItemId(button.dataset.name);
@@ -806,6 +956,7 @@ function setupQuickChips() {
     }
     addTarget(id, Number(button.dataset.count) || 1);
   });
+  host.insertBefore(chips, host.querySelector('.batch-box') || null);
 }
 
 /** 批量文本：解析成清单后仍然走同一套"清单 → 计划"流程 */
@@ -1000,6 +1151,14 @@ function describeAndRender(id) {
   const info = describeItem(state.dataset, id, state.usageIndex);
   const parts = [];
 
+  // 面包屑：指南书分类路径，可点击回到该分类（展开对应分组）
+  const path = categoryPathOf(id);
+  parts.push(`<div class="detail-breadcrumb">${iconHtml(id, 16)}<span>${escapeHtml(id)}</span>${
+    path && path.length
+      ? path.map((name) => `<span class="crumb-sep">›</span><button class="crumb-btn" data-goto-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join('')
+      : '<span class="crumb-sep">›</span><span>未分类（数据里没有对应分类）</span>'
+  }</div>`);
+
   parts.push(`<div class="detail-head">
     ${iconHtml(id, 40)}
     <div>
@@ -1007,7 +1166,7 @@ function describeAndRender(id) {
       <div class="muted small">${escapeHtml(id)}</div>
     </div>
     <div class="detail-actions">
-      <button class="item-link" data-add-target="${escapeHtml(id)}">加入目标</button>
+      <button class="item-link" data-add-target="${escapeHtml(id)}">加为目标</button>
       ${info.hasRecipe ? `<button class="item-link" data-add-base="${escapeHtml(id)}">加入基础材料名单</button>` : ''}
     </div>
   </div>`);
@@ -1051,7 +1210,7 @@ function describeAndRender(id) {
     element.addEventListener('click', () => openRecipe(element.dataset.item));
   });
   host.querySelectorAll('[data-add-target]').forEach((element) => {
-    element.addEventListener('click', () => addTarget(element.dataset.addTarget, 1));
+    element.addEventListener('click', () => addTarget(element.dataset.addTarget, readQuantity()));
   });
   host.querySelectorAll('[data-add-base]').forEach((element) => {
     element.addEventListener('click', () => {
@@ -1061,16 +1220,47 @@ function describeAndRender(id) {
       if (state.targetList.length > 0) runPlan();
     });
   });
+  host.querySelectorAll('[data-goto-category]').forEach((element) => {
+    element.addEventListener('click', () => gotoCategory(element.dataset.gotoCategory));
+  });
+
+  // 侧边栏高亮当前物品，并显示返回按钮
+  highlightNavItem();
+  const back = $('#backBtn');
+  if (back) back.hidden = state.history.length === 0;
 }
 
-/** 打开配方详情：自动切到"配方查看"页签 */
-function openRecipe(id) {
+/** 点面包屑：展开侧边栏里对应的分类分组 */
+function gotoCategory(name) {
+  if (state.sidebarCollapsed) {
+    state.sidebarCollapsed = false;
+    document.body.classList.remove('sidebar-collapsed');
+  }
+  if (!$('#itemInput').value) renderNavTree();
+  document.querySelectorAll('#categoryNav details').forEach((details) => {
+    const label = details.querySelector('summary span:nth-child(2)')?.textContent;
+    if (label === name) details.open = true;
+  });
+}
+
+/** 打开配方详情：带浏览历史，方便在配方之间来回跳 */
+function openRecipe(id, options = {}) {
   if (!state.dataset?.has(id)) return;
+  if (state.recipeFocus && state.recipeFocus !== id && options.pushHistory !== false) {
+    state.history.push(state.recipeFocus);
+    if (state.history.length > 60) state.history.shift();
+  }
   describeAndRender(id);
-  const tab = document.querySelector('.tab[data-tab="recipe"]');
-  if (tab) tab.click();
-  const host = $('#recipeHost');
-  if (host) host.scrollIntoView({ block: 'nearest' });
+  const panel = $('#detailPanel');
+  if (panel) panel.scrollIntoView({ block: 'nearest' });
+}
+
+/** 返回上一个看过的物品 */
+function goBackRecipe() {
+  const previous = state.history.pop();
+  if (previous) openRecipe(previous, { pushHistory: false });
+  const back = $('#backBtn');
+  if (back) back.hidden = state.history.length === 0;
 }
 
 /** 支持 #recipe=物品ID 直接打开某个物品的配方（方便分享链接） */
@@ -1087,33 +1277,6 @@ function recipeFromHash() {
 function setupRecipeView() {
   installIconFallback();
 
-  const input = $('#recipeSearch');
-  const box = $('#recipeSuggest');
-  const render = () => {
-    const query = input.value.trim();
-    if (!query) {
-      box.hidden = true;
-      return;
-    }
-    const hits = state.dataset.search(query, 14);
-    box.hidden = false;
-    box.innerHTML = hits.length
-      ? hits.map((hit) => `<div class="suggest-item" data-id="${escapeHtml(hit.id)}">${iconHtml(hit.id, 20)}<span>${escapeHtml(hit.name)}</span><span class="tag-id">${escapeHtml(hit.id)}</span></div>`).join('')
-      : '<div class="suggest-item muted">没有匹配的物品</div>';
-  };
-  input.addEventListener('input', render);
-  input.addEventListener('focus', render);
-  box.addEventListener('click', (event) => {
-    const item = event.target.closest('.suggest-item');
-    if (!item?.dataset.id) return;
-    input.value = '';
-    box.hidden = true;
-    describeAndRender(item.dataset.id);
-  });
-  document.addEventListener('click', (event) => {
-    if (!event.target.closest('.recipe-search')) box.hidden = true;
-  });
-
   // 树状图 / 采集清单 里点击任意物品 → 打开配方
   $('#treeView').addEventListener('click', (event) => {
     const node = event.target.closest('[data-item-id]');
@@ -1126,7 +1289,10 @@ function setupRecipeView() {
     openRecipe(row.dataset.itemId);
   });
 
-  if (state.dataset.has('simefun4:SYNTHETIC_DIAMOND')) describeAndRender('simefun4:SYNTHETIC_DIAMOND');
+  // 默认展示一个示例，避免主区空着
+  const seed = state.recipeFocus
+    || (state.dataset.has('simefun4:SYNTHETIC_DIAMOND') ? 'simefun4:SYNTHETIC_DIAMOND' : null);
+  if (seed) describeAndRender(seed);
 }
 
 // ---------------------------------------------------------------- 启动
@@ -1153,12 +1319,15 @@ async function main() {
   }
 
   await readIconConfig();
+  await readCategories();
   $('#iconsToggle').checked = state.iconsEnabled;
 
   renderDatasetInfo(addonCount);
   renderBaseGroups();
   renderSources(addonCount);
   renderTargetList();
+  renderNavTree();
+  setupSidebar();
   setupTheme();
   setupTabs();
   setupTreeControls();
@@ -1173,11 +1342,8 @@ async function main() {
 
   // 深链接：#recipe=物品ID → 直接打开该物品的配方
   const wanted = recipeFromHash();
-  if (wanted && state.dataset.has(wanted)){
-    describeAndRender(wanted);
-    const tab = document.querySelector('.tab[data-tab="recipe"]');
-    if (tab) tab.click();
-  }
+  if (wanted && state.dataset.has(wanted)) describeAndRender(wanted);
+  highlightNavItem();
 
   $('#planBtn').addEventListener('click', () => {
     state.recipeChoice = {};
