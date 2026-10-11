@@ -171,6 +171,8 @@ check('目标清单已渲染（选框添加）', /target-row/.test(documentStub.
 check('物品选框已初始化', /suggest|chip-btn/.test(documentStub.querySelector('#quickChips').innerHTML));
 check('概览卡片已渲染', /card-value/.test(documentStub.querySelector('#summaryGrid').innerHTML));
 check('树状图已渲染节点', /node-head/.test(documentStub.querySelector('#treeView').innerHTML));
+check('树节点带物品图标', /item-icon/.test(documentStub.querySelector('#treeView').innerHTML));
+check('配方详情已渲染（网格 + 用途）', /recipe-grid|detail-head/.test(documentStub.querySelector('#recipeHost').innerHTML));
 check('采集清单已渲染', /<table|不需要额外采集/.test(documentStub.querySelector('#materialsView').innerHTML));
 check('合成工序已渲染', /<table/.test(documentStub.querySelector('#orderView').innerHTML));
 check('设置页基础材料已渲染', /base-group/.test(documentStub.querySelector('#baseGroups').innerHTML));

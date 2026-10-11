@@ -1,0 +1,9 @@
+{
+  "_说明": "图标设置。enabled=false 可完全关闭图标（不请求任何外部图片）。overrides 是给单个物品指定自备贴图的覆盖表：把 PNG 放到 data/icons/ 下再在这里登记；留空字符串表示不覆盖。",
+  "_数据来源": "原版物品 → 公开镜像 misode/mcmeta；粘液科技物品 → data/icon-map.json（由 tools/build-icon-map.mjs 从官方资源包仓库按物品 ID 生成，只存映射地址，不打包素材）。",
+  "enabled": true,
+  "overrides": {
+    "_示例_请删除": "data/icons/example.png"
+  }
+}
+

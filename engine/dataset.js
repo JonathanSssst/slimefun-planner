@@ -38,7 +38,8 @@ export function slotsToMaterials(recipe) {
     if (found) {
       found.slotCount += 1;
     } else {
-      map.set(key, { material: key, name: slot.name || key, slotCount: 1 });
+      // 同时给出 id 和 material 两个字段名：调用方两种写法都能读
+      map.set(key, { id: key, material: key, name: slot.name || key, slotCount: 1 });
     }
   }
   return [...map.values()];

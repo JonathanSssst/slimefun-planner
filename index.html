@@ -92,6 +92,7 @@
       <button class="tab" data-tab="materials">采集清单 <span class="badge" id="materialBadge">0</span></button>
       <button class="tab" data-tab="order">合成工序 <span class="badge" id="orderBadge">0</span></button>
       <button class="tab" data-tab="routes">路线对比 <span class="badge" id="routeBadge">0</span></button>
+      <button class="tab" data-tab="recipe">配方查看</button>
       <button class="tab" data-tab="settings">设置</button>
     </nav>
 
@@ -129,6 +130,19 @@
         <div class="table-wrap" id="routesView"></div>
       </div>
 
+      <div class="tab-pane" data-pane="recipe">
+        <div class="toolbar">
+          <span class="search-wrap recipe-search">
+            <input type="search" id="recipeSearch" placeholder="搜索任意物品，查看它的配方与用途…" autocomplete="off">
+            <div class="suggest" id="recipeSuggest" hidden></div>
+          </span>
+          <span class="hint">也可以直接点树状图里的节点、采集清单里的材料来查看。</span>
+        </div>
+        <div class="recipe-host" id="recipeHost">
+          <p class="empty">还没有选择物品。上面搜索一个物品，或点树状图/清单里的任意一项。</p>
+        </div>
+      </div>
+
       <div class="tab-pane" data-pane="settings">
         <h3>基础材料名单</h3>
         <p class="hint">名单里的物品不再展开配方，直接算作"要去弄到的东西"。目标物品即使命中名单，只要它有配方就仍会展开。</p>
@@ -157,6 +171,11 @@
           <button id="reloadOverrides">还原为已保存</button>
           <input type="file" id="importOverrideFile" accept=".json,application/json" hidden>
         </div>
+
+        <h3>显示</h3>
+        <label class="checkbox"><input type="checkbox" id="iconsToggle" checked> 显示物品图标（原版物品用公开镜像，需联网；粘液物品显示首字母徽章）</label>
+        <p class="hint">仓库里不打包任何游戏素材，只引用第三方公开镜像 <code>misode/mcmeta</code>。
+          自定义物品想显示真实图标，把贴图放到 <code>data/icons/</code> 并在 <code>data/icons.json</code> 的 <code>overrides</code> 里登记。</p>
 
         <h3>数据来源</h3>
         <p class="hint" id="sourceInfo"></p>

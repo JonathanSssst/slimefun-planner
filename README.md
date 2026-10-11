@@ -35,6 +35,24 @@
 
 ---
 
+### 物品图标 + 配方查看（新）
+
+- **图标**：每个物品名旁边都会显示图标。原版物品（煤炭、铁锭、燧石…）取自公开镜像
+  [`misode/mcmeta`](https://github.com/misode/mcmeta)；粘液科技物品（铜粉、铁粉、钢锭、压缩碳…）
+  取自官方资源包仓库的贴图映射（`data/icon-map.json`，119 条）。取不到贴图的显示首字母徽章，
+  鼠标悬停/点击仍能看配方。仓库**不打包任何游戏素材**，只存映射地址；
+  「设置 → 显示」里可以一键关掉图标（关掉后不请求任何外部图片）。
+- **配方查看**：新增「配方查看」页签。可以搜索任意物品，也可以直接**点树状图节点 / 采集清单里的材料**
+  打开，看到：
+  - 投料网格（增强型工作台/魔法工作台等按 3×3 摆位显示，冶炼炉/洗矿机等按"投料份数"显示）
+  - 产出数量、所属机器、研究解锁等级
+  - 每种材料的图标与数量（点材料可以继续往下看）
+  - **用途**：哪些物品会用到它（反过来查"这个东西能做啥"）
+  - 多路线提示：数据集只有一条配方时，会提示可以用补录加 `appendVariant` 补充其它途径
+- 深链接：`https://…/slimefun-planner/#recipe=simefun4:IRON_DUST` 可以直接打开某个物品的配方，方便分享。
+
+![配方查看](docs/screenshot-recipe.png)
+
 ### 采集清单粒度（重点）
 
 「采集清单」默认**停在直接投料的中间产物**，不一路打到煤炭、沙砾：
@@ -263,11 +281,12 @@ node --use-system-ca tools\set-repo-meta.mjs
 ## 自检与测试
 
 ```bat
-node --test tests/engine.test.mjs tests/overrides.test.mjs tests/depth.test.mjs   :: 单元测试（21 项）
+node --test tests/engine.test.mjs tests/overrides.test.mjs tests/depth.test.mjs tests/recipe-view.test.mjs   :: 单元测试（34 项）
 node tools/ui-probe.mjs http://127.0.0.1:8791                 :: 界面自检（需先启动服务）
 node tools/ui-probe.mjs "http://127.0.0.1:8791/?theme=dark"   :: 顺带验证深色主题
 node tools/ui-probe.mjs https://jonathansssst.github.io/slimefun-planner/   :: 线上站点自检
 python tools/analyze_dataset.py data/recipes.core.jsonl       :: 数据集体检
+node --use-system-ca tools/build-icon-map.mjs                 :: 重新生成粘液物品图标映射
 ```
 
 单元测试覆盖：按格计数、一次产出多件向上取整、共享中间产物合并、基础材料截断展开、

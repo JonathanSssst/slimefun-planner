@@ -4,10 +4,15 @@
 
 import { loadDatasetFromTexts, DEFAULT_BASE_MATERIALS, BASE_MATERIAL_GROUPS } from '../engine/data.js';
 import { plan } from '../engine/planner.js';
+import { describeItem, buildUsageIndex, resolveIcon } from '../engine/recipe-view.js';
 
 const CORE_FILE = 'recipes.core.jsonl';
 /** 仓库自带的补录（版主维护的公共补录，任何人拉下来都能用） */
 const BUILTIN_OVERRIDES_FILE = 'data/overrides.json';
+/** 自定义物品图标覆盖表 */
+const ICONS_FILE = 'data/icons.json';
+/** 粘液科技物品图标映射（由 tools/build-icon-map.mjs 生成，只存映射不存素材） */
+const ICON_MAP_FILE = 'data/icon-map.json';
 
 const STORAGE_KEY = 'slimefun-planner-settings-v1';
 const LOCAL_OVERRIDES_KEY = 'slimefun-planner-overrides-v1';
@@ -27,6 +32,14 @@ const state = {
   theme: 'light',
   /** 采集清单粒度：'1'=只到直接投料，'2'/'3'=再展开几层，'all'=一路展开到生料 */
   materialDepth: '1',
+  /** 物品图标开关与自定义覆盖 */
+  iconsEnabled: true,
+  iconOverrides: {},
+  iconMap: {},
+  /** 用途索引（材料 -> 哪些物品会用到它） */
+  usageIndex: null,
+  /** 配方查看页当前选中的物品 */
+  recipeFocus: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -87,7 +100,27 @@ async function loadData() {
   state.overrides = mergeOverrides(builtin, state.localOverrides);
 
   state.dataset = loadDatasetFromTexts(sources, { overrides: state.overrides });
+  state.usageIndex = buildUsageIndex(state.dataset);
   return loadedAddons;
+}
+
+/** 读取自定义图标覆盖表（data/icons.json）与粘液物品映射（data/icon-map.json） */
+async function readIconConfig() {
+  try {
+    const parsed = JSON.parse((await fetchText(ICONS_FILE)).replace(/^\uFEFF/, ''));
+    state.iconOverrides = (parsed && typeof parsed.overrides === 'object' && parsed.overrides) || {};
+    if (typeof parsed?.enabled === 'boolean') state.iconsEnabled = parsed.enabled;
+  } catch (err) {
+    console.warn('[icons] 读取失败，按"无覆盖"处理', err.message);
+    state.iconOverrides = {};
+  }
+  try {
+    const map = JSON.parse((await fetchText(ICON_MAP_FILE)).replace(/^\uFEFF/, ''));
+    state.iconMap = map && typeof map === 'object' ? map : {};
+  } catch (err) {
+    console.warn('[icons] 映射表读取失败，粘液物品将显示首字母徽章', err.message);
+    state.iconMap = {};
+  }
 }
 
 /** 仓库自带的公共补录（版主维护，所有人共享） */
@@ -127,6 +160,7 @@ function loadSettings() {
     if (Array.isArray(saved.targetList)) state.targetList = normalizeTargetList(saved.targetList);
     if (saved.theme === 'dark' || saved.theme === 'light') state.theme = saved.theme;
     if (typeof saved.materialDepth === 'string') state.materialDepth = saved.materialDepth;
+    if (typeof saved.iconsEnabled === 'boolean') state.iconsEnabled = saved.iconsEnabled;
   } catch (err) {
     console.warn('[settings] 读取失败', err);
   }
@@ -142,6 +176,7 @@ function saveSettings() {
       targetList: state.targetList,
       theme: state.theme,
       materialDepth: state.materialDepth,
+      iconsEnabled: state.iconsEnabled,
     }));
   } catch (err) {
     console.warn('[settings] 保存失败', err);
@@ -354,8 +389,9 @@ function treeNodeHtml(node, isRoot) {
   const toggle = hasChildren ? '<span class="toggle">▾</span>' : '<span class="toggle empty"></span>';
 
   return `<div class="node ${isRoot ? 'root' : ''} ${node.leaf ? 'leaf-node' : ''}">
-    <div class="node-head">
+    <div class="node-head" data-item-id="${escapeHtml(node.id)}" title="点击查看配方">
       ${toggle}
+      ${iconHtml(node.id, 20)}
       <span class="node-name">${escapeHtml(node.name)}</span>
       <span class="node-qty">×${node.quantity}</span>
       ${craftBits.join('')}
@@ -374,9 +410,9 @@ function renderMaterials(result) {
       unknown: '<span class="tag unknown">无配方数据</span>',
       target: '<span class="tag">目标</span>',
     }[item.kind] || '<span class="tag">材料</span>';
-    return `<tr>
+    return `<tr data-item-id="${escapeHtml(item.id)}" title="点击查看配方">
       <td class="num">${item.count}</td>
-      <td>${escapeHtml(item.name)}</td>
+      <td><span class="cell-item">${iconHtml(item.id, 20)}${escapeHtml(item.name)}</span></td>
       <td class="muted">${item.demand}</td>
       <td class="muted">${item.fromInventory || 0}</td>
       <td>${kindLabel}</td>
@@ -497,6 +533,9 @@ function runPlan() {
   state.result = result;
   $('#resultPanel').hidden = false;
 
+  // 采集清单里当前选中的物品如果还在，刷新它的详情（数量可能变了）
+  if (state.recipeFocus) describeAndRender(state.recipeFocus);
+
   renderSummary(result);
   renderTree(result);
   renderMaterials(result);
@@ -521,10 +560,16 @@ function setupTabs() {
 
 function setupTreeControls() {
   $('#treeView').addEventListener('click', (event) => {
+    const toggle = event.target.closest('.toggle');
     const head = event.target.closest('.node-head');
     if (!head) return;
     const node = head.parentElement;
-    if (node.querySelector('.children')) node.classList.toggle('collapsed');
+    // 点前面的小三角 = 折叠/展开；点其它地方 = 看这个物品的配方
+    if (toggle || !head.dataset.itemId) {
+      if (node.querySelector('.children')) node.classList.toggle('collapsed');
+      return;
+    }
+    openRecipe(head.dataset.itemId);
   });
   $('#expandAll').addEventListener('click', () => {
     document.querySelectorAll('#treeView .node').forEach((node) => node.classList.remove('collapsed'));
@@ -585,7 +630,8 @@ function setupMaterialsControls() {
 
 function suggestItemHtml(hit) {
   return `<div class="suggest-item" data-id="${escapeHtml(hit.id)}">
-    <span>${escapeHtml(hit.name)}</span>
+    ${iconHtml(hit.id, 20)}
+    <span class="suggest-name">${escapeHtml(hit.name)}</span>
     <span class="tag-id">${escapeHtml(hit.id)}${hit.recipeType ? ` · ${escapeHtml(hit.recipeType)}` : ''}</span>
   </div>`;
 }
@@ -792,8 +838,10 @@ function setupSettings() {
     writeLocalOverrides(list);
     state.overrides = mergeOverrides(await readBuiltinOverrides(), list);
     state.dataset = createDatasetWithOverrides(state.overrides);
+    state.usageIndex = buildUsageIndex(state.dataset);
     renderTargetList();
     if (message) alert(message);
+    if (state.recipeFocus) describeAndRender(state.recipeFocus);
     if (state.targetList.length > 0) runPlan();
   };
 
@@ -860,6 +908,216 @@ function setupDepth() {
   });
 }
 
+function installIconFallback() {
+  document.addEventListener('error', (event) => {
+    const img = event.target;
+    if (!img || img.tagName !== 'IMG' || !img.dataset.fallback) return;
+    const seen = Number(img.dataset.fallbackTry || 0);
+    const chain = img.dataset.fallback.split('|').filter(Boolean);
+    if (seen < chain.length) {
+      img.dataset.fallbackTry = String(seen + 1);
+      img.src = chain[seen];
+      return;
+    }
+    // 全部失败：藏掉图片，露出后面的首字母徽章
+    img.classList.add('icon-failed');
+  }, true);
+}
+
+// ---------------------------------------------------------------- 物品图标
+
+/** 生成一个图标元素：能拿到贴图就显示贴图，否则显示首字母徽章 */
+function iconHtml(id, size = 20) {
+  const icon = resolveIcon(id, {
+    enabled: state.iconsEnabled,
+    overrides: state.iconOverrides,
+    iconMap: state.iconMap,
+  });
+  const badge = `<span class="icon-badge tone-${icon.tone}">${escapeHtml(icon.fallbackText)}</span>`;
+  if (!icon.url) return `<span class="item-icon" style="--icon-size:${size}px">${badge}</span>`;
+  const chain = [icon.fallbackUrl].filter(Boolean).join('|');
+  return `<span class="item-icon" style="--icon-size:${size}px">${badge}` +
+    `<img src="${escapeHtml(icon.url)}" alt="" loading="lazy" data-fallback="${escapeHtml(chain)}">` +
+    '</span>';
+}
+
+// ---------------------------------------------------------------- 物品详情
+
+function itemLink(id) {
+  return `<button class="item-link" data-item="${escapeHtml(id)}">${iconHtml(id, 18)}<span>${escapeHtml(state.dataset.name(id))}</span></button>`;
+}
+
+function recipeGridHtml(layout, outputId, outputCount) {
+  if (!layout) return '';
+  const rows = [];
+  for (let row = 0; row < layout.rows; row += 1) {
+    const cells = [];
+    for (let col = 0; col < layout.cols; col += 1) {
+      const slot = layout.grid[row]?.[col] || null;
+      if (slot?.material) {
+        cells.push(`<div class="slot filled" data-item="${escapeHtml(slot.material)}" title="${escapeHtml(slot.name || slot.material)}">${iconHtml(slot.material, 28)}</div>`);
+      } else {
+        cells.push('<div class="slot"></div>');
+      }
+    }
+    rows.push(cells.join(''));
+  }
+  return `<div class="recipe-flow">
+    <div class="grid-wrap">
+      <div class="recipe-grid" style="grid-template-columns:repeat(${layout.cols},1fr)">${rows.join('')}</div>
+      <div class="grid-caption">${layout.isMachineList ? '投料（机器按份数投喂）' : '摆位（按 3×3 网格对齐）'}</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="grid-wrap">
+      <div class="recipe-grid output-grid">
+        <div class="slot filled output" data-item="${escapeHtml(outputId)}" title="${escapeHtml(state.dataset.name(outputId))}">
+          ${iconHtml(outputId, 28)}
+          ${outputCount > 1 ? `<span class="slot-count">×${outputCount}</span>` : ''}
+        </div>
+      </div>
+      <div class="grid-caption">产出 ${outputCount} 个</div>
+    </div>
+  </div>`;
+}
+
+function describeAndRender(id) {
+  if (!state.dataset || !state.dataset.name) return;
+  state.recipeFocus = id;
+  const host = $('#recipeHost');
+  if (!host) return;
+
+  const info = describeItem(state.dataset, id, state.usageIndex);
+  const parts = [];
+
+  parts.push(`<div class="detail-head">
+    ${iconHtml(id, 40)}
+    <div>
+      <h3>${escapeHtml(info.name)}</h3>
+      <div class="muted small">${escapeHtml(id)}</div>
+    </div>
+    <div class="detail-actions">
+      <button class="item-link" data-add-target="${escapeHtml(id)}">加入目标</button>
+      ${info.hasRecipe ? `<button class="item-link" data-add-base="${escapeHtml(id)}">加入基础材料名单</button>` : ''}
+    </div>
+  </div>`);
+
+  if (!info.hasRecipe) {
+    parts.push(`<p class="hint">数据里没有这个物品的配方条目，所以它会被当作"要去弄到的东西"（基础材料 / 采集物）<b>此处不会往下展开</b>。</p>`);
+  } else if (info.kind === 'gather') {
+    parts.push(`<p class="hint">获取方式：<b>${escapeHtml(info.recipeType)}</b>（不是合成配方，直接算作采集/掉落）。</p>`);
+  } else {
+    parts.push(`<div class="detail-meta">
+      <span class="chip machine">${escapeHtml(info.recipeType)}</span>
+      <span class="chip">一次产出 ${info.output} 个</span>
+      ${info.researchCost ? `<span class="chip research">解锁等级 ${info.researchCost}</span>` : ''}
+      ${info.research ? `<span class="chip">研究：${escapeHtml(info.research)}</span>` : ''}
+    </div>`);
+    parts.push(recipeGridHtml(info.layout, id, info.output));
+
+    parts.push('<h4>需要</h4><div class="detail-materials">' + info.layout.materials
+      .map((material) => `<div class="detail-material">${itemLink(material.material)}<span class="muted">×${material.slotCount}</span></div>`)
+      .join('') + '</div>');
+
+    if (info.variants.length > 1) {
+      parts.push(`<h4>其它路线</h4><div class="detail-materials">${info.variants.slice(1).map((variant) =>
+        `<div class="detail-material"><span class="chip machine">${escapeHtml(variant.recipeType)}</span><span class="muted">产出 ${variant.output}</span></div>`).join('')}</div>`);
+    } else {
+      parts.push('<p class="hint">数据里这个物品只记录了一条配方；游戏里若有其它途径（洗矿、打粉等），可以在「设置 → 手工补录配方」用 <code>appendVariant</code> 补成额外路线。</p>');
+    }
+  }
+
+  parts.push('<h4>用途</h4>');
+  if (info.usedBy.length === 0) {
+    parts.push('<p class="hint">没有配方用到它（可能是最终成品，或服务端魔改后不再需要）。</p>');
+  } else {
+    parts.push(`<div class="detail-materials">${info.usedBy.slice(0, 60).map((used) =>
+      `<div class="detail-material">${itemLink(used.id)}</div>`).join('')}</div>`);
+    if (info.usedBy.length > 60) parts.push(`<p class="hint">还有 ${info.usedBy.length - 60} 项未显示。</p>`);
+  }
+
+  host.innerHTML = parts.join('');
+  host.querySelectorAll('[data-item]').forEach((element) => {
+    element.addEventListener('click', () => openRecipe(element.dataset.item));
+  });
+  host.querySelectorAll('[data-add-target]').forEach((element) => {
+    element.addEventListener('click', () => addTarget(element.dataset.addTarget, 1));
+  });
+  host.querySelectorAll('[data-add-base]').forEach((element) => {
+    element.addEventListener('click', () => {
+      state.baseMaterials.add(element.dataset.addBase);
+      saveSettings();
+      renderBaseGroups();
+      if (state.targetList.length > 0) runPlan();
+    });
+  });
+}
+
+/** 打开配方详情：自动切到"配方查看"页签 */
+function openRecipe(id) {
+  if (!state.dataset?.has(id)) return;
+  describeAndRender(id);
+  const tab = document.querySelector('.tab[data-tab="recipe"]');
+  if (tab) tab.click();
+  const host = $('#recipeHost');
+  if (host) host.scrollIntoView({ block: 'nearest' });
+}
+
+/** 支持 #recipe=物品ID 直接打开某个物品的配方（方便分享链接） */
+function recipeFromHash() {
+  try {
+    const hash = decodeURIComponent(location.hash || '');
+    const match = hash.match(/recipe=(.+)$/);
+    return match ? match[1] : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function setupRecipeView() {
+  installIconFallback();
+
+  const input = $('#recipeSearch');
+  const box = $('#recipeSuggest');
+  const render = () => {
+    const query = input.value.trim();
+    if (!query) {
+      box.hidden = true;
+      return;
+    }
+    const hits = state.dataset.search(query, 14);
+    box.hidden = false;
+    box.innerHTML = hits.length
+      ? hits.map((hit) => `<div class="suggest-item" data-id="${escapeHtml(hit.id)}">${iconHtml(hit.id, 20)}<span>${escapeHtml(hit.name)}</span><span class="tag-id">${escapeHtml(hit.id)}</span></div>`).join('')
+      : '<div class="suggest-item muted">没有匹配的物品</div>';
+  };
+  input.addEventListener('input', render);
+  input.addEventListener('focus', render);
+  box.addEventListener('click', (event) => {
+    const item = event.target.closest('.suggest-item');
+    if (!item?.dataset.id) return;
+    input.value = '';
+    box.hidden = true;
+    describeAndRender(item.dataset.id);
+  });
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.recipe-search')) box.hidden = true;
+  });
+
+  // 树状图 / 采集清单 里点击任意物品 → 打开配方
+  $('#treeView').addEventListener('click', (event) => {
+    const node = event.target.closest('[data-item-id]');
+    if (!node) return;
+    openRecipe(node.dataset.itemId);
+  });
+  $('#materialsView').addEventListener('click', (event) => {
+    const row = event.target.closest('[data-item-id]');
+    if (!row) return;
+    openRecipe(row.dataset.itemId);
+  });
+
+  if (state.dataset.has('simefun4:SYNTHETIC_DIAMOND')) describeAndRender('simefun4:SYNTHETIC_DIAMOND');
+}
+
 // ---------------------------------------------------------------- 启动
 
 async function main() {
@@ -883,6 +1141,9 @@ async function main() {
     if (seed) state.targetList = [{ id: seed, count: 1 }];
   }
 
+  await readIconConfig();
+  $('#iconsToggle').checked = state.iconsEnabled;
+
   renderDatasetInfo(addonCount);
   renderBaseGroups();
   renderSources(addonCount);
@@ -896,6 +1157,16 @@ async function main() {
   setupDepth();
   setupSettings();
   setupQuickChips();
+  runPlan();
+  setupRecipeView();
+
+  // 深链接：#recipe=物品ID → 直接打开该物品的配方
+  const wanted = recipeFromHash();
+  if (wanted && state.dataset.has(wanted)){
+    describeAndRender(wanted);
+    const tab = document.querySelector('.tab[data-tab="recipe"]');
+    if (tab) tab.click();
+  }
 
   $('#planBtn').addEventListener('click', () => {
     state.recipeChoice = {};
@@ -906,9 +1177,10 @@ async function main() {
     saveSettings();
     renderTargetList();
     hideNotice();
-    $('#resultPanel').hidden = true;
-    $('#summaryPanel').hidden = true;
-    state.result = null;
+    if (state.result) {
+      state.result = null;
+      runPlan();
+    }
   });
   $('#autoSelect').addEventListener('change', () => {
     state.autoSelect = $('#autoSelect').checked;
@@ -916,8 +1188,12 @@ async function main() {
     saveSettings();
     if (state.targetList.length > 0) runPlan();
   });
-
-  runPlan();
+  $('#iconsToggle').addEventListener('change', () => {
+    state.iconsEnabled = $('#iconsToggle').checked;
+    saveSettings();
+    runPlan();
+    if (state.recipeFocus) describeAndRender(state.recipeFocus);
+  });
 }
 
 main();
